@@ -1,3 +1,4 @@
+use cli_rs::Cli;
 use rand::rngs::OsRng;
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fmt;
@@ -6,6 +7,18 @@ use std::{error::Error, fs::File};
 use std::{fmt::Display, io::prelude::*};
 
 fn main() {
+    let settings = match read_cli_args() {
+        Some(s) => s,
+        None => return,
+    };
+
+    match settings.op {
+        Operation::Decrypt => decrypt(&settings),
+        Operation::Encrypt => encrypt(&settings),
+    }
+}
+
+fn decrypt(settings: &Settings) {
     let pub_key = match load_pub_key() {
         Err(_) => {
             eprintln!("Could not load the public key.");
@@ -15,9 +28,7 @@ fn main() {
         Ok(key) => key,
     };
 
-    let params = std::env::args().collect::<Vec<String>>();
-    let plaintext = params[1].as_str();
-    let ciphertext = match encrypt_txt(plaintext, &pub_key) {
+    let ciphertext = match encrypt_txt(settings.target.as_str(), &pub_key) {
         Err(_) => {
             eprintln!("Could not encrypt the plaintext.");
             // print error
@@ -32,7 +43,9 @@ fn main() {
         .collect::<Vec<String>>()
         .join("");
     println!("Success! Ciphertext: {}", ciphertext_str);
+}
 
+fn encrypt(settings: &Settings) {
     let private_key = match load_private_key() {
         Err(_) => {
             eprintln!("Could not load private key.");
@@ -42,7 +55,7 @@ fn main() {
         Ok(key) => key,
     };
 
-    let dec_plaintext = match decrypt_ciphertext(ciphertext_str.as_str(), &private_key) {
+    let dec_plaintext = match decrypt_ciphertext(settings.target.as_str(), &private_key) {
         Err(_) => {
             eprintln!("Could not decrypt the ciphertext.");
             // print error
@@ -167,6 +180,67 @@ fn read_key_at_path(path: &str) -> Result<Pem, CryptographicError> {
     let key =
         parse(content).map_err(|_| CryptographicError::new(CryptographicErrorKind::InvalidKey))?;
     Ok(key)
+}
+
+fn read_cli_args() -> Option<Settings> {
+    let mut params = std::env::args().skip(1);
+    // operation
+    let operation = match params.next() {
+        Some(o) => match o.as_str() {
+            "decrypt" | "dec" => Operation::Decrypt,
+            "encrypt" | "enc" => Operation::Encrypt,
+            _ => {
+                eprintln!("Must specify encrypt/decrypt operation.");
+                return None;
+            }
+        },
+        None => {
+            eprintln!("Must specify encrypt/decrypt operation.");
+            return None;
+        }
+    };
+
+    // target
+    let (target, is_path) = match params.next() {
+        Some(o) => {
+            if o.len() == 0 {
+                eprintln!("Target is missing.");
+                return None;
+            }
+
+            match o.as_str() {
+                "-f" => match params.next() {
+                    Some(path) => (path, true),
+                    None => {
+                        eprintln!("Target is missing.");
+                        return None;
+                    }
+                },
+                _ => (o, false),
+            }
+        }
+        None => {
+            eprintln!("Must specify a target.");
+            return None;
+        }
+    };
+
+    Some(Settings {
+        op: operation,
+        is_path,
+        target,
+    })
+}
+
+struct Settings {
+    op: Operation,
+    is_path: bool,
+    target: String,
+}
+
+enum Operation {
+    Decrypt,
+    Encrypt,
 }
 
 #[derive(Debug, Clone, Copy)]
