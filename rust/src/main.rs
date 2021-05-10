@@ -1,4 +1,3 @@
-use cli_rs::Cli;
 use rand::rngs::OsRng;
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fmt;
