@@ -1,3 +1,4 @@
+use home;
 use rand::rngs::OsRng;
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fmt;
@@ -14,7 +15,26 @@ fn main() {
     match settings.op {
         Operation::Decrypt => decrypt(&settings),
         Operation::Encrypt => encrypt(&settings),
+        Operation::Init => init(),
+        Operation::ContactAdd => {}
+        Operation::ContactRemove => {}
     }
+}
+
+fn init() {
+    let home_dir = match home::home_dir() {
+        Some(path) => path,
+        None => panic!("Could not get home directory."),
+    };
+
+    // create .qryptex dir to store the information
+    let app_dir = home_dir.join(".qryptex");
+    std::fs::create_dir(app_dir).unwrap();
+
+    // load contacts and keys
+
+    // create key pair
+    // TODO: figure this out
 }
 
 fn decrypt(settings: &Settings) {
@@ -181,6 +201,14 @@ fn read_key_at_path(path: &str) -> Result<Pem, CryptographicError> {
     Ok(key)
 }
 
+/// cli definition
+/// qryptex [option(s)]
+/// decrypt | dec
+/// encrypt | enc
+/// init
+/// export
+/// contact add
+/// contact remove
 fn read_cli_args() -> Option<Settings> {
     let mut params = std::env::args().skip(1);
     // operation
@@ -240,6 +268,9 @@ struct Settings {
 enum Operation {
     Decrypt,
     Encrypt,
+    Init,
+    ContactAdd,
+    ContactRemove,
 }
 
 #[derive(Debug, Clone, Copy)]
