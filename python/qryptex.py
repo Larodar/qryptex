@@ -3,6 +3,23 @@ from Crypto.PublicKey import RSA
 import sys
 from pprint import *
 
+data = {'command': None, 'file': None, 'plaintext': None, 'path': None, }
+attr = ['file', '-f', '-o']
+enc = ['encrypt', 'e', 'enc', 'Encrypt']
+dec = ['decrypt', 'd', 'dec', 'Decrypt']
+for i in range(0, len(sys.argv)):
+    if sys.argv[i] in attr or enc or dec:
+        if sys.argv[i] in enc:
+            data['command'] = 'e'
+        elif sys.argv[i] in dec:
+            data['command'] = 'd'
+        elif sys.argv[i] == '-o':
+            data['path'] = sys.argv[i+1]
+        elif sys.argv[i] == '-f':
+            data['file'] = True
+    else:
+        data['plaintext'] = sys.argv[i]
+
 
 def parse_cli_args():
     if sys.argv[1] == 'encrypt' or sys.argv[1] == 'enc':
