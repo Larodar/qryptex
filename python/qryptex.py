@@ -3,40 +3,44 @@ from Crypto.PublicKey import RSA
 import sys
 from pprint import *
 
-data = {'command': None, 'file': None, 'plaintext': None, 'path': None, }
-attr = ['file', '-f', '-o']
+C_COMMAND_KEY = 'command'
+C_OUT_KEY = 'output'
+C_FILE_FLAG_KEY = 'isfile'
+C_TARGET_KEY = 'target'
+
+data = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
+        C_TARGET_KEY: '', C_OUT_KEY: None, }
+attr = ['-f', '-o']
 enc = ['encrypt', 'e', 'enc', 'Encrypt']
 dec = ['decrypt', 'd', 'dec', 'Decrypt']
-for i in range(0, len(sys.argv)):
-    if sys.argv[i] in attr or enc or dec:
-        if sys.argv[i] in enc:
-            data['command'] = 'e'
-        elif sys.argv[i] in dec:
-            data['command'] = 'd'
-        elif sys.argv[i] == '-o':
-            data['path'] = sys.argv[i+1]
-        elif sys.argv[i] == '-f':
-            data['file'] = True
-    else:
-        data['plaintext'] = sys.argv[i]
 
 
+# possible args
+# qryptex enc ksdkjfgbnds -o c:/path/to/file.txt
+# qryptex enc path/to/plain.txt -o c:/path/to/file.txt -f
+# qryptex enc -f path/to/plain.txt -o c:/path/to/file.txt
+# qryptex enc -o c:/path/to/file.txt -f path/to/plain.txt
 def parse_cli_args():
-    if sys.argv[1] == 'encrypt' or sys.argv[1] == 'enc':
-        encrypt(sys.argv[2])
-        print('reading plantext successful')
-    elif sys.argv[1] == 'decrypt':
-        decrypt(sys.argv[2])
-        print('reading ciphertext successful')
-    elif sys.argv[1] == 'init':
-        init()
-        print('building key pair successful')
-    else:
-        print('wrong command')
+    for i in range(0, len(sys.argv)):
+        if sys.argv[i] in data.values() or sys.argv[i] == 'qryptex.py':
+            pass
+        else:
+            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
+                if sys.argv[i] in enc:
+                    data[C_COMMAND_KEY] = 'e'
+                elif sys.argv[i] in dec:
+                    data[C_COMMAND_KEY] = 'd'
+                elif sys.argv[i] == '-o':
+                    # validate path argument
+                    data[C_OUT_KEY] = sys.argv[i+1]
+                elif sys.argv[i] == '-f':
+                    data[C_FILE_FLAG_KEY] = True
+                    data[C_TARGET_KEY] = sys.argv[i+1]
+            else:
 
-    return {'op': 'e',
-            'target_is_file': True,
-            'target': 'path/to/file'}
+                data[C_TARGET_KEY] = sys.argv[i]
+
+    return data
 
 
 def init():
@@ -66,11 +70,14 @@ def decrypt(ciphertext):
     return plaintext
 
 
+print(sys.argv)
+print(len(sys.argv))
 # read cli args
 settings = parse_cli_args()
+print(data)
 
-if setting['op'] is 'e':
-    encrypt(settings)
+# if setting['op'] is 'e':
+#    encrypt(settings)
 # qryptex encrypt secretMessage
 # qryptex enc secretMessage
 # qryptex enc secretMessage -o path/to/output
@@ -94,3 +101,5 @@ if setting['op'] is 'e':
 # build cipher object
 # decrypt operation
 # print plaintext to stdout
+
+# py  qryptex.py encrypt -f C:/Testfile.py - o Testpath
