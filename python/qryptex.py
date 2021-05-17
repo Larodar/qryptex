@@ -21,9 +21,11 @@ dec = ['decrypt', 'd', 'dec', 'Decrypt']
 # qryptex enc -f path/to/plain.txt -o c:/path/to/file.txt
 # qryptex enc -o c:/path/to/file.txt -f path/to/plain.txt
 def parse_cli_args():
-    for i in range(0, len(sys.argv)):
-        if sys.argv[i] in data.values() or sys.argv[i] == 'qryptex.py':
+    for i in range(1, len(sys.argv)):
+        if sys.argv[i] in data.values():
             pass
+        elif sys.argv[i] == 'help':
+            options()
         else:
             if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
                 if sys.argv[i] in enc:
@@ -41,6 +43,15 @@ def parse_cli_args():
                 data[C_TARGET_KEY] = sys.argv[i]
 
     return data
+
+
+def options():
+    print('possible arguments:')
+    print('encrypt | enc    --> encrypts the phrase or file')
+    print('decrypt | dec    --> decrypts the phrase or file')
+    print('init             --> creates a .qryptex directory in the current users home directory, where contacts and the users public and private are stored. A key pair is created too.')
+    print('contact add      --> adds a contact to the qryptex addressbook')
+    print('contact remove   --> removes a contact from the qryptex addressbook')
 
 
 def init():
@@ -70,11 +81,8 @@ def decrypt(ciphertext):
     return plaintext
 
 
-print(sys.argv)
-print(len(sys.argv))
 # read cli args
 settings = parse_cli_args()
-print(data)
 
 # if setting['op'] is 'e':
 #    encrypt(settings)
