@@ -2,59 +2,98 @@ from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 import sys
 from pprint import *
+import os
 
 C_COMMAND_KEY = 'command'
 C_OUT_KEY = 'output'
 C_FILE_FLAG_KEY = 'isfile'
 C_TARGET_KEY = 'target'
+C_CONTACT_KEY = 'contact'
+C_CONTACT_FLAG_KEY = 'iscontact'
+C_CONTACT_COMMAND_KEY = 'Contactcommand'
 
 data = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
-        C_TARGET_KEY: '', C_OUT_KEY: None, }
-attr = ['-f', '-o']
-enc = ['encrypt', 'e', 'enc', 'Encrypt']
-dec = ['decrypt', 'd', 'dec', 'Decrypt']
-
-
+        C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
+attr = ['-f', '-o', '-c']
+command = ['encrypt', 'e', 'enc', 'Encrypt', 'decrypt',
+           'd', 'dec', 'Decrypt', 'help', 'add', 'remove']
 # possible args
 # qryptex enc ksdkjfgbnds -o c:/path/to/file.txt
 # qryptex enc path/to/plain.txt -o c:/path/to/file.txt -f
 # qryptex enc -f path/to/plain.txt -o c:/path/to/file.txt
 # qryptex enc -o c:/path/to/file.txt -f path/to/plain.txt
+# qryptex enc -o c:/path/to/destination.txt -f path/to/file.txt -c ContactName
+# qryptex init -add ContactName
+# qryptex remove -c ContactName
+
+
 def parse_cli_args():
     for i in range(1, len(sys.argv)):
         if sys.argv[i] in data.values():
             pass
-        elif sys.argv[i] == 'help':
-            options()
-        else:
-            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
-                if sys.argv[i] in enc:
-                    data[C_COMMAND_KEY] = 'e'
-                elif sys.argv[i] in dec:
-                    data[C_COMMAND_KEY] = 'd'
-                elif sys.argv[i] == '-o':
-                    # validate path argument
-                    data[C_OUT_KEY] = sys.argv[i+1]
-                elif sys.argv[i] == '-f':
-                    data[C_FILE_FLAG_KEY] = True
-                    data[C_TARGET_KEY] = sys.argv[i+1]
-            else:
+        elif sys.argv[i] in command:
+            if sys.argv[i] in command[0, 3]:
+                data[C_COMMAND_KEY] = 'e'
+            elif sys.argv[i] in command[4, 7]:
+                data[C_COMMAND_KEY] = 'd'
+            elif sys.argv[i] in command[10]:
+                data[C_CONTACT_COMMAND_KEY] = 'r'
+            elif sys.argv[i] in command[9]:
+                data[C_CONTACT_COMMAND_KEY] = 'a'
+            elif sys.argv[i] in command[8]:
+                data[C_COMMAND_KEY] = 'h'
+        elif sys.arg[i] in attr:
+            if sys.argv[i] in attr[0]:
+                data[C_FILE_FLAG_KEY] = True
+                data[C_TARGET_KEY] = sys.argv[i+1]
+            if sys.argv[i] in attr[1]:
+                data[C_OUT_KEY] = sys.argv[i+1]
 
-                data[C_TARGET_KEY] = sys.argv[i]
 
-    return data
+# def parse_cli_args():
+#    for i in range(1, len(sys.argv)):
+#        if sys.argv[i] in data.values():
+#            pass
+#        elif sys.argv[i] == 'help':
+#            options()
+#        else:
+#            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
+#                if sys.argv[i] in enc:
+#                    data[C_COMMAND_KEY] = 'e'
+#                elif sys.argv[i] in dec:
+#                    data[C_COMMAND_KEY] = 'd'
+#                elif sys.argv[i] == '-o':
+#                    # validate path argument
+#                    data[C_OUT_KEY] = sys.argv[i+1]
+#                elif sys.argv[i] == '-f':
+#                    data[C_FILE_FLAG_KEY] = True
+#                    data[C_TARGET_KEY] = sys.argv[i+1]
+#            else:
+#
+#                data[C_TARGET_KEY] = sys.argv[i]
+#
+#    return data
 
 
 def options():
     print('possible arguments:')
+    print('________________________________________________________________')
     print('encrypt | enc    --> encrypts the phrase or file')
     print('decrypt | dec    --> decrypts the phrase or file')
-    print('init             --> creates a .qryptex directory in the current users home directory, where contacts and the users public and private are stored. A key pair is created too.')
-    print('contact add      --> adds a contact to the qryptex addressbook')
-    print('contact remove   --> removes a contact from the qryptex addressbook')
+    print('-f               --> used to mark file, then enter path to file e.g.: \n \t\t     -f C:/folder/file.txt\n')
+    print('-o               --> used to mark output path e.g.: \n \t\t     -o C:/folder/destination.txt\n')
+    print('-c               --> used to mark contactname e.g.: \n \t\t     -c Contactname\n')
+    print('init             --> creates a .qryptex directory in the current users home directory,\n \t\t     where contacts and the users public and private are stored.\n \t\t     A key pair is created too.\n')
+    print('add              --> adds a contact to the qryptex addressbook e.g.: \n \t\t     init add -c Contactname\n')
+    print('remove           --> removes a contact from the qryptex addressbook e.g.: \n \t\t     qryptex.py remove -c Username\n')
 
 
 def init():
+    directory = data[C_CONTACT_KEY]
+    parent_dir = os.path.curdir
+    path = os.path.join(parent_dir, directory)
+    os.mkdir(path)
+    os.chdir(path)
     key = RSA.generate(2048)
     f = open('private.pem', 'wb')
     f.write(key.export_key('PEM'))
