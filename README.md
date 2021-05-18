@@ -16,4 +16,4 @@ The init option creates a .qryptex directory in the current users home directory
 
 
 # Comments
-i suggest that you review my code from time to time.  every other day should be enough. also i would appreciate if you can give me some keywords for the case that you see easier ways or mechanisms. I will dig in the topics by myself then. hope that'll save some time. 
+i suggest that you review my code from time to time. every other day should be enough. also i would appreciate if you can give me some keywords for the case that you see easier ways or mechanisms. I will dig in the topics by myself then. hope that'll save some time. 

@@ -32,9 +32,9 @@ def parse_cli_args():
         if sys.argv[i] in data.values():
             pass
         elif sys.argv[i] in command:
-            if sys.argv[i] in command[0, 3]:
+            if sys.argv[i] in command[0: 3]:
                 data[C_COMMAND_KEY] = 'e'
-            elif sys.argv[i] in command[4, 7]:
+            elif sys.argv[i] in command[4: 7]:
                 data[C_COMMAND_KEY] = 'd'
             elif sys.argv[i] in command[10]:
                 data[C_CONTACT_COMMAND_KEY] = 'r'
@@ -42,37 +42,39 @@ def parse_cli_args():
                 data[C_CONTACT_COMMAND_KEY] = 'a'
             elif sys.argv[i] in command[8]:
                 data[C_COMMAND_KEY] = 'h'
-        elif sys.arg[i] in attr:
+        elif sys.argv[i] in attr:
             if sys.argv[i] in attr[0]:
                 data[C_FILE_FLAG_KEY] = True
                 data[C_TARGET_KEY] = sys.argv[i+1]
-            if sys.argv[i] in attr[1]:
+            elif sys.argv[i] in attr[1]:
                 data[C_OUT_KEY] = sys.argv[i+1]
+            elif sys.argv[i] in attr[2]:
+                data[C_CONTACT_FLAG_KEY] = True
+                data[C_CONTACT_KEY] = sys.argv[i+1]
 
-
-# def parse_cli_args():
-#    for i in range(1, len(sys.argv)):
-#        if sys.argv[i] in data.values():
-#            pass
-#        elif sys.argv[i] == 'help':
-#            options()
-#        else:
-#            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
-#                if sys.argv[i] in enc:
-#                    data[C_COMMAND_KEY] = 'e'
-#                elif sys.argv[i] in dec:
-#                    data[C_COMMAND_KEY] = 'd'
-#                elif sys.argv[i] == '-o':
-#                    # validate path argument
-#                    data[C_OUT_KEY] = sys.argv[i+1]
-#                elif sys.argv[i] == '-f':
-#                    data[C_FILE_FLAG_KEY] = True
-#                    data[C_TARGET_KEY] = sys.argv[i+1]
-#            else:
-#
-#                data[C_TARGET_KEY] = sys.argv[i]
-#
-#    return data
+                # def parse_cli_args():
+                #    for i in range(1, len(sys.argv)):
+                #        if sys.argv[i] in data.values():
+                #            pass
+                #        elif sys.argv[i] == 'help':
+                #            options()
+                #        else:
+                #            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
+                #                if sys.argv[i] in enc:
+                #                    data[C_COMMAND_KEY] = 'e'
+                #                elif sys.argv[i] in dec:
+                #                    data[C_COMMAND_KEY] = 'd'
+                #                elif sys.argv[i] == '-o':
+                #                    # validate path argument
+                #                    data[C_OUT_KEY] = sys.argv[i+1]
+                #                elif sys.argv[i] == '-f':
+                #                    data[C_FILE_FLAG_KEY] = True
+                #                    data[C_TARGET_KEY] = sys.argv[i+1]
+                #            else:
+                #
+                #                data[C_TARGET_KEY] = sys.argv[i]
+                #
+                #    return data
 
 
 def options():
@@ -122,9 +124,9 @@ def decrypt(ciphertext):
 
 # read cli args
 settings = parse_cli_args()
-
+print(data)
 # if setting['op'] is 'e':
-#    encrypt(settings)
+# encrypt(settings)
 # qryptex encrypt secretMessage
 # qryptex enc secretMessage
 # qryptex enc secretMessage -o path/to/output
@@ -149,4 +151,4 @@ settings = parse_cli_args()
 # decrypt operation
 # print plaintext to stdout
 
-# py  qryptex.py encrypt -f C:/Testfile.py - o Testpath
+# py  qryptex.py encrypt -f C:/Testfile.py -o Testpath -c Testname
