@@ -11,9 +11,9 @@ C_TARGET_KEY = 'target'
 C_CONTACT_KEY = 'contact'
 C_CONTACT_FLAG_KEY = 'iscontact'
 C_CONTACT_COMMAND_KEY = 'Contactcommand'
+C_MOD_ENC = 'encrypt'
+C_MOD_DEC = 'decrypt'
 
-data = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
-        C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
 attr = ['-f', '-o', '-c']
 command = ['encrypt', 'e', 'enc', 'Encrypt', 'decrypt',
            'd', 'dec', 'Decrypt', 'help', 'add', 'remove']
@@ -23,11 +23,19 @@ command = ['encrypt', 'e', 'enc', 'Encrypt', 'decrypt',
 # qryptex enc -f path/to/plain.txt -o c:/path/to/file.txt
 # qryptex enc -o c:/path/to/file.txt -f path/to/plain.txt
 # qryptex enc -o c:/path/to/destination.txt -f path/to/file.txt -c ContactName
-# qryptex init -add ContactName
-# qryptex remove -c ContactName
+# qryptex init
+# qryptex contact remove 'contactname'
+# qryptex contact add 'contactname' path/to/key.file
+# qryptex enc jrgbsdijkg to 'contactname'
 
+# parse cli args
 
 def parse_cli_args():
+    args = sys.argv
+
+    settings = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
+        C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
+
     for i in range(1, len(sys.argv)):
         if sys.argv[i] in data.values():
             pass
@@ -48,6 +56,8 @@ def parse_cli_args():
                 data[C_TARGET_KEY] = sys.argv[i+1]
             if sys.argv[i] in attr[1]:
                 data[C_OUT_KEY] = sys.argv[i+1]
+
+    return settings
 
 
 # def parse_cli_args():
@@ -121,8 +131,14 @@ def decrypt(ciphertext):
 
 
 # read cli args
-settings = parse_cli_args()
+data = parse_cli_args()
 
+if data[C_COMMAND_KEY] is C_MOD_ENC:
+    encrypt(data)
+elif data[C_COMMAND_KEY] is C_MOD_DEC:
+    decrypt(data)
+else:
+    raise Exception("schlimm!")
 # if setting['op'] is 'e':
 #    encrypt(settings)
 # qryptex encrypt secretMessage
