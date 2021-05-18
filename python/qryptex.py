@@ -1,8 +1,8 @@
+import os
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 import sys
 from pprint import *
-import os
 
 C_COMMAND_KEY = 'command'
 C_OUT_KEY = 'output'
@@ -13,10 +13,10 @@ C_CONTACT_FLAG_KEY = 'iscontact'
 C_CONTACT_COMMAND_KEY = 'Contactcommand'
 C_MOD_ENC = 'encrypt'
 C_MOD_DEC = 'decrypt'
+C_MOD_INIT = 'init'
+C_MOD_CONTACT = 'contact'
+C_MOD_HELP = 'help'
 
-attr = ['-f', '-o', '-c']
-command = ['encrypt', 'e', 'enc', 'Encrypt', 'decrypt',
-           'd', 'dec', 'Decrypt', 'help', 'add', 'remove']
 # possible args
 # qryptex enc ksdkjfgbnds -o c:/path/to/file.txt
 # qryptex enc path/to/plain.txt -o c:/path/to/file.txt -f
@@ -33,58 +33,60 @@ command = ['encrypt', 'e', 'enc', 'Encrypt', 'decrypt',
 
 def parse_cli_args():
     args = sys.argv
+    # first arg is module call
+    # each module needs its own dict
+    # check which module is called, branching further parsing afterwards
+    s = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
+         C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
 
-    settings = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
-                C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
+    for i in range(1, len(args)):
+        arg = args[i]
 
-    for i in range(1, len(sys.argv)):
-        if sys.argv[i] in data.values():
+        if arg in s.values():
             pass
-        elif sys.argv[i] in command:
-            if sys.argv[i] in command[0: 3]:
-                data[C_COMMAND_KEY] = 'e'
-            elif sys.argv[i] in command[4: 7]:
-                data[C_COMMAND_KEY] = 'd'
-            elif sys.argv[i] in command[10]:
-                data[C_CONTACT_COMMAND_KEY] = 'r'
-            elif sys.argv[i] in command[9]:
-                data[C_CONTACT_COMMAND_KEY] = 'a'
-            elif sys.argv[i] in command[8]:
-                data[C_COMMAND_KEY] = 'h'
-        elif sys.argv[i] in attr:
-            if sys.argv[i] in attr[0]:
-                data[C_FILE_FLAG_KEY] = True
-                data[C_TARGET_KEY] = sys.argv[i+1]
-            elif sys.argv[i] in attr[1]:
-                data[C_OUT_KEY] = sys.argv[i+1]
-            elif sys.argv[i] in attr[2]:
-                data[C_CONTACT_FLAG_KEY] = True
-                data[C_CONTACT_KEY] = sys.argv[i+1]
+        elif arg in ['encrypt', 'e', 'enc']:
+            s[C_COMMAND_KEY] = C_MOD_ENC
+        elif arg in ['decrypt', 'd', 'dec']:
+            s[C_COMMAND_KEY] = C_MOD_DEC
+        elif arg is 'remove':
+            s[C_CONTACT_COMMAND_KEY] = 'r'
+        elif arg is 'add':
+            s[C_CONTACT_COMMAND_KEY] = 'a'
+        elif arg is 'help':
+            s[C_COMMAND_KEY] = C_MOD_HELP
+        elif arg is '-f':
+            s[C_FILE_FLAG_KEY] = True
+            s[C_TARGET_KEY] = args[i+1]
+        elif arg is '-o':
+            s[C_OUT_KEY] = args[i+1]
+        elif arg is '-c':
+            s[C_CONTACT_FLAG_KEY] = True
+            s[C_CONTACT_KEY] = args[i+1]
 
-    return settings
+    return s
 
 
 # def parse_cli_args():
-#    for i in range(1, len(sys.argv)):
-#        if sys.argv[i] in data.values():
+#    for i in range(1, len(args)):
+#        if args[i] in data.values():
 #            pass
-#        elif sys.argv[i] == 'help':
+#        elif args[i] == 'help':
 #            options()
 #        else:
-#            if sys.argv[i] in attr or sys.argv[i] in enc or sys.argv[i] in dec:
-#                if sys.argv[i] in enc:
+#            if args[i] in attr or args[i] in enc or args[i] in dec:
+#                if args[i] in enc:
 #                    data[C_COMMAND_KEY] = 'e'
-#                elif sys.argv[i] in dec:
+#                elif args[i] in dec:
 #                    data[C_COMMAND_KEY] = 'd'
-#                elif sys.argv[i] == '-o':
+#                elif args[i] == '-o':
 #                    # validate path argument
-#                    data[C_OUT_KEY] = sys.argv[i+1]
-#                elif sys.argv[i] == '-f':
+#                    data[C_OUT_KEY] = args[i+1]
+#                elif args[i] == '-f':
 #                    data[C_FILE_FLAG_KEY] = True
-#                    data[C_TARGET_KEY] = sys.argv[i+1]
+#                    data[C_TARGET_KEY] = args[i+1]
 #            else:
 #
-#                data[C_TARGET_KEY] = sys.argv[i]
+#                data[C_TARGET_KEY] = args[i]
 #
 #    return data
 
@@ -103,7 +105,7 @@ def options():
 
 
 def init():
-    directory = data[C_CONTACT_KEY]
+    directory = settings[C_CONTACT_KEY]
     parent_dir = os.path.curdir
     path = os.path.join(parent_dir, directory)
     os.mkdir(path)
@@ -139,12 +141,12 @@ def decrypt(ciphertext):
 settings = parse_cli_args()
 print(data)
 
-data = parse_cli_args()
+settings = parse_cli_args()
 
-if data[C_COMMAND_KEY] is C_MOD_ENC:
-    encrypt(data)
-elif data[C_COMMAND_KEY] is C_MOD_DEC:
-    decrypt(data)
+if settings[C_COMMAND_KEY] is C_MOD_ENC:
+    encrypt(settings)
+elif settings[C_COMMAND_KEY] is C_MOD_DEC:
+    decrypt(settings)
 else:
     raise Exception("schlimm!")
 
