@@ -15,12 +15,16 @@ fn main() {
         }
     };
 
-    match settings.op {
+    let result = match settings.op {
         Operation::Decrypt => decrypt(&settings),
         Operation::Encrypt => encrypt(&settings),
         Operation::Init => init(),
         Operation::ContactAdd => {}
         Operation::ContactRemove => {}
+    };
+
+    if let Err(e) = result {
+        eprintln!("{}", e);
     }
 }
 
@@ -40,53 +44,59 @@ fn init() {
     // TODO: figure this out
 }
 
-fn decrypt(settings: &Settings) -> Result<(), CryptographicError> {
+fn encrypt(settings: &Settings) -> Result<(), CryptographicError> {
     let pub_key = load_pub_key()?;
     let opData = settings.data;
 
     let ciphertext = encrypt_txt(settings.as_str(), &pub_key)?;
 
-    let ciphertext_str = ciphertext
-        .iter()
-        .map(|b| format!("{:02X}", b))
-        .collect::<Vec<String>>()
-        .join("");
-    println!("Success! Ciphertext: {}", ciphertext_str);
+    match settings.data {
+        OpData::CryptoOp { is_path, target } if settings.op == Operation::Encrypt => {
+            if is_path {
+            } else {
+            }
+            let ciphertext_str = ciphertext
+                .iter()
+                .map(|b| format!("{:02X}", b))
+                .collect::<Vec<String>>()
+                .join("");
+            println!("Success! Ciphertext: {}", ciphertext_str);
+            Ok(())
+        }
+        _ => {
+            eprintln!("Invalid data for crypto operation.");
+            Err(CryptographicError::new(CryptographicErrorKind::Encryption))
+        }
+    }
 }
 
-fn encrypt(settings: &Settings) -> Result<(), CryptographicError> {
-    let private_key = match load_private_key() {
-        Err(_) => {
-            eprintln!("Could not load private key.");
-            // print error
-            return;
-        }
-        Ok(key) => key,
-    };
-
+fn decrypt(settings: &Settings) -> Result<(), CryptographicError> {
     match settings.data {
-        OpData::CryptoOp { is_path, target } if settings.op == Operation::Encrypt => Ok(()),
-        _ => Err(CryptographicError("Invalid data for crypto operation.")),
+        OpData::CryptoOp { is_path, target } if settings.op == Operation::Decrypt => {
+            let ciphertext = match is_path {
+                true => std::fs::read(target)
+                    .map_err(|_| CryptographicError::new(CryptographicErrorKind::Io)),
+                false => hex_to_bytes(&target),
+            }?;
+
+            let private_key = load_private_key()?;
+            let dec_plaintext = decrypt_ciphertext(&ciphertext, &private_key)?;
+            let dec_plaintext_str = match String::from_utf8(dec_plaintext) {
+                Err(e) => {
+                    eprintln!("Decrypted plaintext is invalid utf8.");
+                    return Err(CryptographicError::new(CryptographicErrorKind::Format));
+                }
+                Ok(text) => text,
+            };
+
+            println!("{}", dec_plaintext_str);
+            Ok(())
+        }
+        _ => {
+            eprintln!("Invalid data for crypto operation.");
+            Err(CryptographicError::new(CryptographicErrorKind::Decryption))
+        }
     }
-
-    let dec_plaintext = match decrypt_ciphertext(settings.target.as_str(), &private_key) {
-        Err(_) => {
-            eprintln!("Could not decrypt the ciphertext.");
-            // print error
-            return;
-        }
-        Ok(data) => data,
-    };
-
-    let dec_plaintext_str = match String::from_utf8(dec_plaintext) {
-        Err(e) => {
-            eprintln!("Decrypted plaintext is invalid utf8.");
-            return;
-        }
-        Ok(text) => text,
-    };
-
-    println!("Decrypted: {}", dec_plaintext_str);
 }
 
 fn encrypt_txt(
@@ -99,15 +109,30 @@ fn encrypt_txt(
     // prepare encryption
     let mut rng = OsRng;
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
-    let ciphertext = match public_key.encrypt(&mut rng, padding, &plaintext_raw[..]) {
+    match public_key.encrypt(&mut rng, padding, &plaintext_raw[..]) {
         Err(e) => Err(CryptographicError::new(CryptographicErrorKind::Encryption)),
         Ok(ciph) => Ok(ciph),
-    }?;
-    Ok(ciphertext)
+    }
+}
+
+fn decrypt_txt(
+    ciphertext: &str,
+    private_key: &RSAPrivateKey,
+) -> Result<Vec<u8>, CryptographicError> {
+    // prepare data
+    let ciphertext_raw = ciphertext.bytes().collect::<Vec<u8>>();
+
+    // prepare encryption
+    let mut rng = OsRng;
+    let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
+    match private_key.decrypt(padding, &plaintext_raw[..]) {
+        Err(e) => Err(CryptographicError::new(CryptographicErrorKind::Decryption)),
+        Ok(ciph) => Ok(ciph),
+    }
 }
 
 fn decrypt_ciphertext(
-    ciphertext_hex: &str,
+    ciphertext: &[u8],
     private_key: &RSAPrivateKey,
 ) -> Result<Vec<u8>, CryptographicError> {
     if ciphertext_hex.len() & 1 > 0 {
@@ -368,6 +393,7 @@ enum OpData {
     ContactOp { name: String, key: Option<String> },
 }
 
+#[derive(Debug, PartialEq)]
 enum Operation {
     Decrypt,
     Encrypt,
