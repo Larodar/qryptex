@@ -8,8 +8,11 @@ use std::{fmt::Display, io::prelude::*};
 
 fn main() {
     let settings = match read_cli_args() {
-        Some(s) => s,
-        None => return,
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
     };
 
     match settings.op {
@@ -37,24 +40,11 @@ fn init() {
     // TODO: figure this out
 }
 
-fn decrypt(settings: &Settings) {
-    let pub_key = match load_pub_key() {
-        Err(_) => {
-            eprintln!("Could not load the public key.");
-            // print error
-            return;
-        }
-        Ok(key) => key,
-    };
+fn decrypt(settings: &Settings) -> Result<(), CryptographicError> {
+    let pub_key = load_pub_key()?;
+    let opData = settings.data;
 
-    let ciphertext = match encrypt_txt(settings.target.as_str(), &pub_key) {
-        Err(_) => {
-            eprintln!("Could not encrypt the plaintext.");
-            // print error
-            return;
-        }
-        Ok(ciph) => ciph,
-    };
+    let ciphertext = encrypt_txt(settings.as_str(), &pub_key)?;
 
     let ciphertext_str = ciphertext
         .iter()
@@ -64,7 +54,7 @@ fn decrypt(settings: &Settings) {
     println!("Success! Ciphertext: {}", ciphertext_str);
 }
 
-fn encrypt(settings: &Settings) {
+fn encrypt(settings: &Settings) -> Result<(), CryptographicError> {
     let private_key = match load_private_key() {
         Err(_) => {
             eprintln!("Could not load private key.");
@@ -73,6 +63,11 @@ fn encrypt(settings: &Settings) {
         }
         Ok(key) => key,
     };
+
+    match settings.data {
+        OpData::CryptoOp { is_path, target } if settings.op == Operation::Encrypt => Ok(()),
+        _ => Err(CryptographicError("Invalid data for crypto operation.")),
+    }
 
     let dec_plaintext = match decrypt_ciphertext(settings.target.as_str(), &private_key) {
         Err(_) => {
@@ -209,60 +204,168 @@ fn read_key_at_path(path: &str) -> Result<Pem, CryptographicError> {
 /// export
 /// contact add
 /// contact remove
-fn read_cli_args() -> Option<Settings> {
+fn read_cli_args() -> Result<Settings, CliError> {
     let mut params = std::env::args().skip(1);
     // operation
-    let operation = match params.next() {
+    match params.next() {
         Some(o) => match o.as_str() {
-            "decrypt" | "dec" => Operation::Decrypt,
-            "encrypt" | "enc" => Operation::Encrypt,
+            "decrypt" | "dec" => read_crypto_command(params, Operation::Decrypt),
+            "encrypt" | "enc" => read_crypto_command(params, Operation::Encrypt),
+            "contact" => read_contact_command(params),
+            _ => Err(CliError(String::from("Must specify operation"))),
+        },
+        None => Err(CliError(String::from("Must specify operation."))),
+    }
+}
+
+fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<Settings, CliError> {
+    let op = match args.next() {
+        Some(m) => match m.as_str() {
+            "add" => Operation::ContactAdd,
+            "remove" => Operation::ContactRemove,
             _ => {
-                eprintln!("Must specify encrypt/decrypt operation.");
-                return None;
+                return Err(CliError(String::from("Must specify add/remove modifier")));
             }
         },
         None => {
-            eprintln!("Must specify encrypt/decrypt operation.");
-            return None;
+            return Err(CliError(String::from("Must specify add/remove modifier")));
         }
     };
 
-    // target
-    let (target, is_path) = match params.next() {
-        Some(o) => {
-            if o.len() == 0 {
-                eprintln!("Target is missing.");
-                return None;
+    let data = match op {
+        Operation::ContactAdd => {
+            // expect name and path to key file
+            let name_opt = None;
+            let key_opt = None;
+            while let Some(s) = args.next() {
+                match s.as_str() {
+                    "-n" | "--name" => match args.next().as_deref() {
+                        Some("-k") | None => {
+                            return Err(CliError(String::from("Missing value for --name/-n.")))
+                        }
+                        Some(val) => name_opt = Some(String::from(val)),
+                    },
+                    "-k" | "--key" => match args.next().as_deref() {
+                        Some("-n") | None => {
+                            return Err(CliError(String::from("Missing value for --key/-k.")))
+                        }
+                        Some(val) => name_opt = Some(String::from(val)),
+                    },
+                    _ => return Err(CliError(String::from(format!("Unknown argument: {}", s)))),
+                };
             }
 
-            match o.as_str() {
-                "-f" => match params.next() {
-                    Some(path) => (path, true),
-                    None => {
-                        eprintln!("Target is missing.");
-                        return None;
-                    }
+            let name = match name_opt {
+                Some(n) => n,
+                None => {
+                    return Err(CliError(String::from("Missing argument: --name/-n.")));
+                }
+            };
+
+            if key_opt == None {
+                return Err(CliError(String::from("Missing argument: --name/-n.")));
+            }
+
+            OpData::ContactOp { name, key: key_opt }
+        }
+        Operation::ContactRemove => {
+            // expect a name
+            match args.next() {
+                Some(s) => OpData::ContactOp { name: s, key: None },
+                None => {
+                    return Err(CliError(String::from(
+                        "Missing name for contact to remove.",
+                    )))
+                }
+            }
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(Settings { op, data })
+}
+
+fn read_crypto_command(
+    mut args: impl Iterator<Item = String>,
+    op: Operation,
+) -> Result<Settings, CliError> {
+    let data = match args.next() {
+        Some(arg) => match arg.as_str() {
+            "-f" => args.next().map_or(
+                Err(CliError(String::from("Missing path of plaintext file."))),
+                |val| {
+                    Ok(OpData::CryptoOp {
+                        is_path: true,
+                        target: val,
+                    })
                 },
-                _ => (o, false),
-            }
-        }
-        None => {
-            eprintln!("Must specify a target.");
-            return None;
-        }
-    };
+            ),
+            _ => match args.next().as_deref() {
+                None => Ok(OpData::CryptoOp {
+                    is_path: false,
+                    target: arg,
+                }),
+                Some("-f") => Ok(OpData::CryptoOp {
+                    is_path: true,
+                    target: arg,
+                }),
+                Some(s) => Err(CliError(String::from(format!("Invalid argument: {}", s)))),
+            },
+        },
+        None => Err(CliError(String::from("Missing path of plaintext file."))),
+    }?;
 
-    Some(Settings {
-        op: operation,
-        is_path,
-        target,
-    })
+    Ok(Settings { op, data })
+}
+
+#[derive(Debug, Clone)]
+struct CliError(String);
+
+impl Error for CliError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl fmt::Display for CliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", <&CliError as Into<String>>::into(self))
+    }
+}
+
+impl Into<String> for &CliError {
+    fn into(self) -> String {
+        self.0.clone()
+    }
+}
+
+impl Into<String> for CliError {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
+impl From<String> for CliError {
+    fn from(s: String) -> Self {
+        CliError(s)
+    }
+}
+
+impl From<&String> for CliError {
+    fn from(s: &String) -> Self {
+        CliError(s.clone())
+    }
 }
 
 struct Settings {
     op: Operation,
-    is_path: bool,
-    target: String,
+    data: OpData,
+}
+
+enum OpData {
+    Empty,
+    CryptoOp { is_path: bool, target: String },
+    ContactOp { name: String, key: Option<String> },
 }
 
 enum Operation {
