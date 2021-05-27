@@ -17,9 +17,8 @@ fn main() {
         }
     };
 
-    let pub_key_path = "/home/larodar/Documents/keys/dev/pubKey.pem";
     let private_key_path = "/home/larodar/Documents/keys/dev/privKey.pem";
-    let mut app_settings = AppSettings {
+    let app_settings = AppSettings {
         home: home::home_dir().unwrap(),
     };
 
@@ -31,7 +30,7 @@ fn main() {
                 OpData::CryptoOp {
                     is_path,
                     target,
-                    key_path,
+                    key_path: _,
                 } => {
                     settings.data = OpData::CryptoOp {
                         is_path,
@@ -42,7 +41,7 @@ fn main() {
                 _ => unreachable!(),
             };
 
-            decrypt(&settings, &app_settings)
+            decrypt(&settings)
         }
         Operation::Encrypt => {
             let new_key_path = app_settings.home.clone();
@@ -67,8 +66,8 @@ fn main() {
             encrypt(&settings)
         }
         Operation::Init => init(),
-        Operation::ContactAdd => Ok(()),
-        Operation::ContactRemove => Ok(()),
+        Operation::ContactAdd => add_contact(&settings, &app_settings),
+        Operation::ContactRemove => remove_contact(&settings, &app_settings),
     };
 
     if let Err(e) = result {
@@ -78,19 +77,19 @@ fn main() {
 
 fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
     match &settings.data {
-        OpData::ContactOp { name, key } if settings.op == Operation::ContactAdd => {
+        OpData::ContactOp { name, key_path } if settings.op == Operation::ContactAdd => {
             // path to the key file
-            let mut contact_path = app.home.join(".qryptex");
-            contact_path.join(name.as_str());
+            let contact_path = app.home.join(".qryptex").join(name.as_str());
 
             // contact name
             if Path::exists(contact_path.as_path()) {
                 return Err(CryptographicError::new(CryptographicErrorKind::ContactAdd));
             }
 
-            let key = load_pub_key(contact_path.as_path())?;
-            // assembly file content
-            let content = std::fs::read(contact_path.as_path()).unwrap();
+            let import_path = key_path.as_ref().unwrap().as_path();
+            let _ = load_pub_key(import_path)?;
+            // assemble file content
+            let content = std::fs::read(import_path).unwrap();
             std::fs::write(contact_path, content).unwrap();
             Ok(())
         }
@@ -100,10 +99,9 @@ fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), Cryptogra
 
 fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
     match &settings.data {
-        OpData::ContactOp { name, key } if settings.op == Operation::ContactAdd => {
+        OpData::ContactOp { name, key_path: _ } if settings.op == Operation::ContactAdd => {
             // path to the key file
-            let mut contact_path = app.home.join(".qryptex");
-            contact_path.join(name.as_str());
+            let contact_path = app.home.join(".qryptex").join(name.as_str());
 
             // contact name
             if !Path::exists(contact_path.as_path()) {
@@ -167,7 +165,7 @@ fn encrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
     }
 }
 
-fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
+fn decrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
     match &settings.data {
         OpData::CryptoOp {
             is_path,
@@ -216,7 +214,7 @@ fn decrypt_ciphertext(
 ) -> Result<Vec<u8>, CryptographicError> {
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
     let plaintext = match private_key.decrypt(padding, ciphertext) {
-        Err(e) => Err(CryptographicError::new(CryptographicErrorKind::Encryption)),
+        Err(_) => Err(CryptographicError::new(CryptographicErrorKind::Encryption)),
         Ok(ciph) => Ok(ciph),
     }?;
 
@@ -259,13 +257,13 @@ fn load_private_key(path: &Path) -> Result<RSAPrivateKey, CryptographicError> {
     Ok(private_key)
 }
 
-fn gen_key_pair() {
-    let key_pair_path = "/home/laroar/Documents/keys/dev/pubKey.pem";
-    let mut rng = OsRng;
-    let bits = 2048;
-    let private_key = RSAPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
-    let public_key = RSAPublicKey::from(&private_key);
-}
+//fn gen_key_pair() {
+//    let key_pair_path = "/home/laroar/Documents/keys/dev/pubKey.pem";
+//    let mut rng = OsRng;
+//    let bits = 2048;
+//    let private_key = RSAPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
+//    let public_key = RSAPublicKey::from(&private_key);
+//}
 
 fn read_key_at_path(path: &Path) -> Result<Pem, CryptographicError> {
     let mut file = match File::open(Path::new(path)) {
@@ -301,6 +299,10 @@ fn read_cli_args() -> Result<OpSettings, CliError> {
             "decrypt" | "dec" => read_crypto_command(params, Operation::Decrypt),
             "encrypt" | "enc" => read_crypto_command(params, Operation::Encrypt),
             "contact" => read_contact_command(params),
+            "init" => Ok(OpSettings {
+                op: Operation::Init,
+                data: OpData::Empty,
+            }),
             _ => Err(CliError(String::from("Must specify operation"))),
         },
         None => Err(CliError(String::from("Must specify operation."))),
@@ -355,12 +357,18 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<OpSett
                 return Err(CliError(String::from("Missing argument: --name/-n.")));
             }
 
-            OpData::ContactOp { name, key: key_opt }
+            OpData::ContactOp {
+                name,
+                key_path: key_opt,
+            }
         }
         Operation::ContactRemove => {
             // expect a name
             match args.next() {
-                Some(s) => OpData::ContactOp { name: s, key: None },
+                Some(s) => OpData::ContactOp {
+                    name: s,
+                    key_path: None,
+                },
                 None => {
                     return Err(CliError(String::from(
                         "Missing name for contact to remove.",
@@ -467,7 +475,7 @@ enum OpData {
     },
     ContactOp {
         name: String,
-        key: Option<String>,
+        key_path: Option<PathBuf>,
     },
 }
 
