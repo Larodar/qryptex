@@ -4,6 +4,7 @@ from Crypto.PublicKey import RSA
 import sys
 from pprint import *
 
+C_MOD_KEY = 'module'
 C_COMMAND_KEY = 'command'
 C_OUT_KEY = 'output'
 C_FILE_FLAG_KEY = 'isfile'
@@ -16,6 +17,7 @@ C_MOD_DEC = 'decrypt'
 C_MOD_INIT = 'init'
 C_MOD_CONTACT = 'contact'
 C_MOD_HELP = 'help'
+
 
 # possible args
 # qryptex enc ksdkjfgbnds -o c:/path/to/file.txt
@@ -33,62 +35,62 @@ C_MOD_HELP = 'help'
 
 def parse_cli_args():
     args = sys.argv
-    # first arg is module call
-    # each module needs its own dict
-    # check which module is called, branching further parsing afterwards
-    s = {C_COMMAND_KEY: None, C_FILE_FLAG_KEY: False,
-         C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False, C_CONTACT_COMMAND_KEY: ''}
+    if args[1] in ['encrypt', 'e', 'enc'] or args[1] in ['decrypt', 'd', 'dec']:
+        s = {C_MOD_KEY: '', C_FILE_FLAG_KEY: False,
+             C_TARGET_KEY: '', C_OUT_KEY: None, C_CONTACT_KEY: '', C_CONTACT_FLAG_KEY: False}
+        if args[1] in ['encrypt', 'e', 'enc']:
+            s[C_MOD_KEY] = C_MOD_ENC
+        elif args[1] in ['decrypt', 'd', 'dec']:
+            s[C_MOD_KEY] = C_MOD_DEC
+        for i in range(2, len(args)):
+            arg = args[i]
+            if arg in s.values():
+                pass
+            elif arg is '-f':
+                s[C_FILE_FLAG_KEY] = True
+                s[C_TARGET_KEY] = args[i+1]
+            elif arg is '-o':
+                s[C_OUT_KEY] = args[i+1]
+            elif arg is '-c' or arg is 'to':
+                s[C_CONTACT_FLAG_KEY] = True
+                s[C_CONTACT_KEY] = args[i+1]
+            else:
+                s[C_TARGET_KEY] = arg
 
-    for i in range(1, len(args)):
-        arg = args[i]
-
-        if arg in s.values():
-            pass
-        elif arg in ['encrypt', 'e', 'enc']:
-            s[C_COMMAND_KEY] = C_MOD_ENC
-        elif arg in ['decrypt', 'd', 'dec']:
-            s[C_COMMAND_KEY] = C_MOD_DEC
-        elif arg is 'remove':
-            s[C_CONTACT_COMMAND_KEY] = 'r'
-        elif arg is 'add':
-            s[C_CONTACT_COMMAND_KEY] = 'a'
-        elif arg is 'help':
-            s[C_COMMAND_KEY] = C_MOD_HELP
-        elif arg is '-f':
-            s[C_FILE_FLAG_KEY] = True
-            s[C_TARGET_KEY] = args[i+1]
-        elif arg is '-o':
-            s[C_OUT_KEY] = args[i+1]
-        elif arg is '-c':
-            s[C_CONTACT_FLAG_KEY] = True
-            s[C_CONTACT_KEY] = args[i+1]
-
+    elif args[1] == 'contact':
+        s = {C_MOD_KEY: '', C_TARGET_KEY: '', C_COMMAND_KEY: '', C_OUT_KEY: ''}
+        s[C_MOD_KEY] = C_MOD_CONTACT
+        for i in range(2, len(args)):
+            arg = args[i]
+            if arg is 'remove':
+                s[C_COMMAND_KEY] = 'remove'
+                s[C_TARGET_KEY] = args[i+1]
+            elif arg is 'add':
+                s[C_COMMAND_KEY] = 'add'
+                s[C_TARGET_KEY] = args[i+1]
+                s[C_OUT_KEY] = args[i+2]
+    elif args[1] == 'init':
+        s = {C_MOD_KEY: C_MOD_INIT}
+    elif args[1] == 'help':
+        s = {C_MOD_KEY: C_MOD_HELP}
     return s
 
 
-# def parse_cli_args():
-#    for i in range(1, len(args)):
-#        if args[i] in data.values():
-#            pass
-#        elif args[i] == 'help':
-#            options()
-#        else:
-#            if args[i] in attr or args[i] in enc or args[i] in dec:
-#                if args[i] in enc:
-#                    data[C_COMMAND_KEY] = 'e'
-#                elif args[i] in dec:
-#                    data[C_COMMAND_KEY] = 'd'
-#                elif args[i] == '-o':
-#                    # validate path argument
-#                    data[C_OUT_KEY] = args[i+1]
-#                elif args[i] == '-f':
-#                    data[C_FILE_FLAG_KEY] = True
-#                    data[C_TARGET_KEY] = args[i+1]
-#            else:
-#
-#                data[C_TARGET_KEY] = args[i]
-#
-#    return data
+class contact:
+    def addcontact():
+        directory = 'contacts'
+        parent_dir = os.path.curdir
+        path = os.path.join(parent_dir, directory)
+        os.mkdir(path)
+        os.chdir(path)
+
+    def removecontact():
+        pass
+
+# clearifying concept of how contacts are handled
+# new folder for new contact witch public.pem file inside
+# or one folder with all publickey files, but files are named : contact.pem
+# how are other contacts public keys initially delivered
 
 
 def options():
@@ -105,7 +107,7 @@ def options():
 
 
 def init():
-    directory = settings[C_CONTACT_KEY]
+    directory = 'contacts'
     parent_dir = os.path.curdir
     path = os.path.join(parent_dir, directory)
     os.mkdir(path)
@@ -136,19 +138,21 @@ def decrypt(ciphertext):
     return plaintext
 
 
-# read cli args
-
-settings = parse_cli_args()
-print(data)
-
 settings = parse_cli_args()
 
-if settings[C_COMMAND_KEY] is C_MOD_ENC:
+if settings[C_MOD_KEY] is C_MOD_ENC:
     encrypt(settings)
-elif settings[C_COMMAND_KEY] is C_MOD_DEC:
+elif settings[C_MOD_KEY] is C_MOD_DEC:
     decrypt(settings)
+elif settings[C_MOD_KEY] is C_MOD_CONTACT:
+    contact(settings)
+elif settings[C_MOD_KEY] is C_MOD_INIT:
+    init()
+elif settings[C_MOD_KEY] is C_MOD_HELP:
+    options()
 else:
-    raise Exception("schlimm!")
+    print('UNKNOWN COMMAND!\n type help for further information')
+
 
 # if setting['op'] is 'e':
 # encrypt(settings)
