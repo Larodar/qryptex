@@ -24,18 +24,20 @@ fn main() {
 
     let result = match settings.op {
         Operation::Decrypt => {
-            let new_key_path = PathBuf::from_str(private_key_path).unwrap();
+            let new_key_path = String::from_str(private_key_path).unwrap();
             // TODO: find a better way to do this
             match settings.data {
                 OpData::CryptoOp {
                     is_path,
                     target,
-                    key_path: _,
+                    contact: _,
+                    output_path: _,
                 } => {
                     settings.data = OpData::CryptoOp {
                         is_path,
                         target,
-                        key_path: new_key_path,
+                        contact: new_key_path,
+                        output_path: PathBuf::new(),
                     };
                 }
                 _ => unreachable!(),
@@ -50,15 +52,17 @@ fn main() {
                 OpData::CryptoOp {
                     is_path,
                     target,
-                    key_path: _,
+                    contact: _,
+                    output_path: _,
                 } => {
                     // join with name to get public key path
                     // new_key_path.join(path)
-                    settings.data = OpData::CryptoOp {
-                        is_path,
-                        target,
-                        key_path: new_key_path,
-                    };
+                    //settings.data = OpData::CryptoOp {
+                    //    is_path,
+                    //    target,
+                    //    contact: new_key_path,
+                    //    output_path: PathBuf::new(),
+                    //};
                 }
                 _ => unreachable!(),
             };
@@ -140,7 +144,8 @@ fn encrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
         OpData::CryptoOp {
             is_path,
             target,
-            key_path,
+            contact,
+            output_path: _,
         } if settings.op == Operation::Encrypt => {
             let plaintext = match is_path {
                 true => std::fs::read(target)
@@ -171,6 +176,7 @@ fn decrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
             is_path,
             target,
             key_path,
+            output_path: _,
         } if settings.op == Operation::Decrypt => {
             let ciphertext = match is_path {
                 true => std::fs::read(target)
@@ -386,36 +392,59 @@ fn read_crypto_command(
     mut args: impl Iterator<Item = String>,
     op: Operation,
 ) -> Result<OpSettings, CliError> {
-    let data = match args.next() {
+    let mut is_path = false;
+    let mut target = String::new();
+    let mut contact = String::new();
+    let mut output_path = PathBuf::new();
+    match args.next() {
         Some(arg) => match arg.as_str() {
-            "-f" => args.next().map_or(
+            "-f" | "--file" => args.next().map_or(
                 Err(CliError(String::from("Missing path of plaintext file."))),
                 |val| {
-                    Ok(OpData::CryptoOp {
-                        is_path: true,
-                        target: val,
-                        key_path: PathBuf::new(),
-                    })
+                    target = val;
+                    Ok(())
+                },
+            ),
+            "-o" | "--output" => args.next().map_or(
+                Err(CliError(String::from("Missing path of output file."))),
+                |val| {
+                    output_path.push(val.as_str());
+                    Ok(())
+                },
+            ),
+            "-c" | "--contact" => args.next().map_or(
+                Err(CliError(String::from("Missing contact name."))),
+                |val| {
+                    contact.push_str(val.as_str());
+                    Ok(())
                 },
             ),
             _ => match args.next().as_deref() {
-                None => Ok(OpData::CryptoOp {
-                    is_path: false,
-                    target: arg,
-                    key_path: PathBuf::new(),
-                }),
-                Some("-f") => Ok(OpData::CryptoOp {
-                    is_path: true,
-                    target: arg,
-                    key_path: PathBuf::new(),
-                }),
+                None => {
+                    target.push_str(arg.as_str());
+                    is_path = false;
+                    Ok(())
+                }
+                Some("-f") => {
+                    target.push_str(arg.as_str());
+                    is_path = true;
+                    Ok(())
+                }
                 Some(s) => Err(CliError(String::from(format!("Invalid argument: {}", s)))),
             },
         },
         None => Err(CliError(String::from("Missing path of plaintext file."))),
     }?;
 
-    Ok(OpSettings { op, data })
+    Ok(OpSettings {
+        op,
+        data: OpData::CryptoOp {
+            is_path,
+            target,
+            contact,
+            output_path,
+        },
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -471,7 +500,8 @@ enum OpData {
     CryptoOp {
         is_path: bool,
         target: String,
-        key_path: PathBuf,
+        contact: String,
+        output_path: PathBuf,
     },
     ContactOp {
         name: String,
