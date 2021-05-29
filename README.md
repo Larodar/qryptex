@@ -35,9 +35,10 @@ decrypt | dec
 
 Options:
 
-* -f/ --file: Marks the text argument as path. Qryptex will then encrypt the content of the file and save as a copy of the file.
+* -f/ --file:       Marks the text argument as path. Qryptex will then decrypt the content of the file.
+* -o/ --output:     The path to a directory where the decrypted data should be written to.
 
-The command encrypts the given plaintext and print it to stdout if the file flag (-f/--file) was NOT specified.
+The command decrypts the given ciphertext and prints it to stdout if the file flag (-f/--file) was NOT specified.
 
 ### Init
 Command variants (case independent):
