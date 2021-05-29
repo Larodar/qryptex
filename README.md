@@ -1,22 +1,69 @@
 # qryptex
 A small encryption tool
+## Rust implementation
+Does not support creation and storing of a key pair.
+Has no UI (yet?).
+
+## Python implementation
+Does not run without a pyhton installation and has a dependency to the cryptodome package.
+Has no UI (yet?).
 
 # CLI Interface
 Usage: qryptex [option(s)]
 ## Options
 
 ### Encrypt
-Possible commands (case independent):
+Command variants (case independent):
 ```
 encrypt | enc
 ```
 
-* decrypt | dec
-* init
-* contact add
-* contact remove
-* export {contact}
+Options:
 
-# Configuration
-The init option creates a .qryptex directory in the current users home directory, where contacts and the users public and private keys are stored. A key pair is created, too.
+* -f/ --file:       Marks the text argument as path. Qryptex will then encrypt the content of the file and save as a copy of the file.
+* -c/ --contact:    The contact name for which the data shall be encypted.
+* -o/ --output:     The path to a directory where the encrypted data should be written to.
 
+The command encrypts the given plaintext for the selected contact and prints it to stdout if the file flag (-f/--file) was NOT specified. Otherwise a new file next to the target is created.
+
+
+### Decrypt
+Command variants (case independent):
+```
+decrypt | dec
+```
+
+Options:
+
+* -f/ --file:       Marks the text argument as path. Qryptex will then decrypt the content of the file.
+* -o/ --output:     The path to a directory where the decrypted data should be written to.
+
+The command decrypts the given ciphertext and prints it to stdout if the file flag (-f/--file) was NOT specified.
+
+### Init
+Command variants (case independent):
+```
+init
+```
+
+This command has no options or flags. It creates a .qryptex directory in the users $home and creates a keypair to use with the application.
+
+### contact add
+Command variants (case independent):
+```
+contact add
+```
+
+### contact remove
+Command variants (case independent):
+```
+contact remove
+```
+
+### !notImplemented export {contact name}
+Command variants (case independent):
+```
+export
+```
+
+Exports the public key of the provided contact or, if no name was given, exports the applications public key. (-t to supply a target)
