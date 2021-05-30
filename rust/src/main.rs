@@ -20,6 +20,7 @@ fn main() {
     let private_key_path = "/home/larodar/Documents/keys/dev/privKey.pem";
     let app_settings = AppSettings {
         home: home::home_dir().unwrap(),
+        contacts: vec![],
     };
 
     let result = match settings.op {
@@ -245,7 +246,11 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, CryptographicError> {
     Ok(bytes)
 }
 
-fn load_pub_key(path: &Path) -> Result<RSAPublicKey, CryptographicError> {
+fn load_pub_key(
+    contact_name: &String,
+    context: &AppSettings,
+) -> Result<RSAPublicKey, CryptographicError> {
+    // build path
     let pub_pem = read_key_at_path(path)?;
     let pub_key = match RSAPublicKey::try_from(pub_pem) {
         Err(_) => Err(CryptographicError::new(CryptographicErrorKind::Format)),
@@ -447,6 +452,30 @@ fn read_crypto_command(
     })
 }
 
+struct AppSettings {
+    home: PathBuf,
+    contacts: Vec<String>,
+}
+
+struct OpSettings {
+    op: Operation,
+    data: OpData,
+}
+
+enum OpData {
+    Empty,
+    CryptoOp {
+        is_path: bool,
+        target: String,
+        contact: String,
+        output_path: PathBuf,
+    },
+    ContactOp {
+        name: String,
+        key_path: Option<PathBuf>,
+    },
+}
+
 #[derive(Debug, Clone)]
 struct CliError(String);
 
@@ -484,29 +513,6 @@ impl From<&String> for CliError {
     fn from(s: &String) -> Self {
         CliError(s.clone())
     }
-}
-
-struct AppSettings {
-    home: PathBuf,
-}
-
-struct OpSettings {
-    op: Operation,
-    data: OpData,
-}
-
-enum OpData {
-    Empty,
-    CryptoOp {
-        is_path: bool,
-        target: String,
-        contact: String,
-        output_path: PathBuf,
-    },
-    ContactOp {
-        name: String,
-        key_path: Option<PathBuf>,
-    },
 }
 
 #[derive(Debug, PartialEq)]
