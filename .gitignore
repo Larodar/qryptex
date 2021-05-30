@@ -10,4 +10,7 @@ Cargo.lock
 **/*.rs.bk
 
 *.pem
-!dev_keys/
+!dev_keys/user1/user1_pub.pem
+!dev_keys/user1/user1_priv.pem
+!dev_keys/user2/user2_pub.pem
+!dev_keys/user2/user2_priv.pem
