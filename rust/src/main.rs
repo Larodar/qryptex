@@ -1,19 +1,18 @@
+use contacts::*;
 use error::{CliError, CryptographicError, CryptographicErrorKind};
 use home;
 use rand::rngs::OsRng;
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
-use std::fmt;
+use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{convert::TryFrom, path::Path};
-use std::{error::Error, fs::File};
-use std::{fmt::Display, io::prelude::*};
 
 mod contacts;
 mod error;
 
 fn main() {
-    let mut settings = match read_cli_args() {
+    let mut op_settings = match read_cli_args() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{}", e);
@@ -22,23 +21,27 @@ fn main() {
     };
 
     let private_key_path = "/home/larodar/Documents/keys/dev/privKey.pem";
+    let home_dir = home::home_dir().unwrap();
+    let home = home_dir.join(".qryptex").clone();
+    let contacts_dir = home_dir.join("contacts");
     let app_settings = AppSettings {
-        home: home::home_dir().unwrap(),
-        contacts: vec![],
+        home,
+        contacts_dir: contacts_dir.clone(),
+        contacts: load_contact_names(contacts_dir.as_path()).unwrap(),
     };
 
-    let result = match settings.op {
+    let result = match op_settings.op {
         Operation::Decrypt => {
             let new_key_path = String::from_str(private_key_path).unwrap();
             // TODO: find a better way to do this
-            match settings.data {
+            match op_settings.data {
                 OpData::CryptoOp {
                     is_path,
                     target,
                     contact: _,
                     output_path: _,
                 } => {
-                    settings.data = OpData::CryptoOp {
+                    op_settings.data = OpData::CryptoOp {
                         is_path,
                         target,
                         contact: new_key_path,
@@ -48,35 +51,14 @@ fn main() {
                 _ => unreachable!(),
             };
 
-            decrypt(&settings)
+            decrypt(&op_settings, &app_settings)
         }
-        Operation::Encrypt => {
-            let new_key_path = app_settings.home.clone();
-            // TODO: find a better way to do this
-            match settings.data {
-                OpData::CryptoOp {
-                    is_path,
-                    target,
-                    contact: _,
-                    output_path: _,
-                } => {
-                    // join with name to get public key path
-                    // new_key_path.join(path)
-                    //settings.data = OpData::CryptoOp {
-                    //    is_path,
-                    //    target,
-                    //    contact: new_key_path,
-                    //    output_path: PathBuf::new(),
-                    //};
-                }
-                _ => unreachable!(),
-            };
-
-            encrypt(&settings)
+        Operation::Encrypt => encrypt(&op_settings, &app_settings),
+        Operation::Init => {
+            init(&app_settings).map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))
         }
-        Operation::Init => init(),
-        Operation::ContactAdd => add_contact(&settings, &app_settings),
-        Operation::ContactRemove => remove_contact(&settings, &app_settings),
+        Operation::ContactAdd => add_contact(&op_settings, &app_settings),
+        Operation::ContactRemove => remove_contact(&op_settings, &app_settings),
     };
 
     if let Err(e) = result {
@@ -96,10 +78,11 @@ fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), Cryptogra
             }
 
             let import_path = key_path.as_ref().unwrap().as_path();
-            let _ = load_pub_key(import_path)?;
+            let bytes = fs::read(import_path)
+                .map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))?;
+            let _ = pub_key_from_bytes(&bytes)?;
             // assemble file content
-            let content = std::fs::read(import_path).unwrap();
-            std::fs::write(contact_path, content).unwrap();
+            fs::write(contact_path, &bytes).unwrap();
             Ok(())
         }
         _ => Err(CryptographicError::new(CryptographicErrorKind::ContactAdd)),
@@ -110,15 +93,8 @@ fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), Crypto
     match &settings.data {
         OpData::ContactOp { name, key_path: _ } if settings.op == Operation::ContactAdd => {
             // path to the key file
-            let contact_path = app.home.join(".qryptex").join(name.as_str());
-
-            // contact name
-            if !Path::exists(contact_path.as_path()) {
-                return Ok(());
-            }
-
-            std::fs::remove_file(contact_path).unwrap();
-            Ok(())
+            contacts::delete_contact_file(app.contacts_dir.as_path(), name)
+                .map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))
         }
         _ => Err(CryptographicError::new(
             CryptographicErrorKind::ContactRemove,
@@ -126,17 +102,11 @@ fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), Crypto
     }
 }
 
-fn init() -> Result<(), CryptographicError> {
-    let home_dir = match home::home_dir() {
-        Some(path) => path,
-        None => panic!("Could not get home directory."),
-    };
-
+fn init(settings: &AppSettings) -> std::io::Result<()> {
     // create .qryptex dir to store the information
-    let app_dir = home_dir.join(".qryptex");
-    std::fs::create_dir(app_dir).unwrap();
-
-    // load contacts and keys
+    fs::create_dir(settings.home.as_path())?;
+    // create contacts dir to store the contact files
+    init_contacts_dir(settings.contacts_dir.as_path())?;
 
     // create key pair
     // TODO: figure this out
@@ -144,7 +114,7 @@ fn init() -> Result<(), CryptographicError> {
     Ok(())
 }
 
-fn encrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
+fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
     match &settings.data {
         OpData::CryptoOp {
             is_path,
@@ -157,7 +127,7 @@ fn encrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
                     .map_err(|_| CryptographicError::new(CryptographicErrorKind::Io)),
                 false => hex_to_bytes(&target),
             }?;
-            let pub_key = load_pub_key(&key_path)?;
+            let pub_key = load_contact(contact, app)?;
             let ciphertext = encrypt_txt(&plaintext[..], &pub_key)?;
 
             let ciphertext_str = ciphertext
@@ -175,12 +145,12 @@ fn encrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
     }
 }
 
-fn decrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
+fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
     match &settings.data {
         OpData::CryptoOp {
             is_path,
             target,
-            key_path,
+            contact: _,
             output_path: _,
         } if settings.op == Operation::Decrypt => {
             let ciphertext = match is_path {
@@ -189,7 +159,7 @@ fn decrypt(settings: &OpSettings) -> Result<(), CryptographicError> {
                 false => hex_to_bytes(&target),
             }?;
 
-            let private_key = load_private_key(&key_path)?;
+            let private_key = load_private_key(app.home.join("private.pem").as_path())?;
             let plaintext_raw = decrypt_ciphertext(&ciphertext, &private_key)?;
             let plaintext = match String::from_utf8(plaintext_raw) {
                 Err(_) => {
@@ -250,16 +220,24 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, CryptographicError> {
     Ok(bytes)
 }
 
-fn load_pub_key(
+fn load_contact(
     contact_name: &String,
-    context: &AppSettings,
+    app: &AppSettings,
 ) -> Result<RSAPublicKey, CryptographicError> {
-    // build path
-    let pub_pem = read_key_at_path(path)?;
+    let bytes = contacts::load_contact_key_bytes(app.contacts_dir.as_path(), contact_name)
+        .map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))?;
+    let pub_key = pub_key_from_bytes(&bytes)?;
+    Ok(pub_key)
+}
+
+fn pub_key_from_bytes(bytes: &Vec<u8>) -> Result<RSAPublicKey, CryptographicError> {
+    let pub_pem =
+        parse(bytes).map_err(|_| CryptographicError::new(CryptographicErrorKind::InvalidKey))?;
     let pub_key = match RSAPublicKey::try_from(pub_pem) {
         Err(_) => Err(CryptographicError::new(CryptographicErrorKind::Format)),
         Ok(key) => Ok(key),
     }?;
+
     Ok(pub_key)
 }
 
@@ -281,21 +259,10 @@ fn load_private_key(path: &Path) -> Result<RSAPrivateKey, CryptographicError> {
 //}
 
 fn read_key_at_path(path: &Path) -> Result<Pem, CryptographicError> {
-    let mut file = match File::open(Path::new(path)) {
-        Err(e) => Err(CryptographicError::from(e)),
-        Ok(f) => Ok(f),
-    }?;
-
-    println!("opened file");
-    let mut content = vec![];
-    let _ = match file.read_to_end(&mut content) {
-        Err(_) => Err(CryptographicError::new(CryptographicErrorKind::Io)),
-        Ok(u) => Ok(u),
-    }?;
-
-    let key =
-        parse(content).map_err(|_| CryptographicError::new(CryptographicErrorKind::InvalidKey))?;
-    Ok(key)
+    let bytes = fs::read(path).map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))?;
+    let pem =
+        parse(bytes).map_err(|_| CryptographicError::new(CryptographicErrorKind::InvalidKey))?;
+    Ok(pem)
 }
 
 /// cli definition
@@ -318,9 +285,9 @@ fn read_cli_args() -> Result<OpSettings, CliError> {
                 op: Operation::Init,
                 data: OpData::Empty,
             }),
-            _ => Err(CliError(String::from("Must specify operation"))),
+            _ => Err(CliError::new(String::from("Must specify operation"))),
         },
-        None => Err(CliError(String::from("Must specify operation."))),
+        None => Err(CliError::new(String::from("Must specify operation."))),
     }
 }
 
@@ -330,11 +297,15 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<OpSett
             "add" => Operation::ContactAdd,
             "remove" => Operation::ContactRemove,
             _ => {
-                return Err(CliError(String::from("Must specify add/remove modifier")));
+                return Err(CliError::new(String::from(
+                    "Must specify add/remove modifier",
+                )));
             }
         },
         None => {
-            return Err(CliError(String::from("Must specify add/remove modifier")));
+            return Err(CliError::new(String::from(
+                "Must specify add/remove modifier",
+            )));
         }
     };
 
@@ -347,29 +318,34 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<OpSett
                 match s.as_str() {
                     "-n" | "--name" => match args.next().as_deref() {
                         Some("-k") | None => {
-                            return Err(CliError(String::from("Missing value for --name/-n.")))
+                            return Err(CliError::new(String::from("Missing value for --name/-n.")))
                         }
                         Some(val) => name_opt = Some(String::from(val)),
                     },
                     "-k" | "--key" => match args.next().as_deref() {
                         Some("-n") | None => {
-                            return Err(CliError(String::from("Missing value for --key/-k.")))
+                            return Err(CliError::new(String::from("Missing value for --key/-k.")))
                         }
                         Some(val) => name_opt = Some(String::from(val)),
                     },
-                    _ => return Err(CliError(String::from(format!("Unknown argument: {}", s)))),
+                    _ => {
+                        return Err(CliError::new(String::from(format!(
+                            "Unknown argument: {}",
+                            s
+                        ))))
+                    }
                 };
             }
 
             let name = match name_opt {
                 Some(n) => n,
                 None => {
-                    return Err(CliError(String::from("Missing argument: --name/-n.")));
+                    return Err(CliError::new(String::from("Missing argument: --name/-n.")));
                 }
             };
 
             if key_opt == None {
-                return Err(CliError(String::from("Missing argument: --name/-n.")));
+                return Err(CliError::new(String::from("Missing argument: --name/-n.")));
             }
 
             OpData::ContactOp {
@@ -385,7 +361,7 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<OpSett
                     key_path: None,
                 },
                 None => {
-                    return Err(CliError(String::from(
+                    return Err(CliError::new(String::from(
                         "Missing name for contact to remove.",
                     )))
                 }
@@ -408,21 +384,23 @@ fn read_crypto_command(
     match args.next() {
         Some(arg) => match arg.as_str() {
             "-f" | "--file" => args.next().map_or(
-                Err(CliError(String::from("Missing path of plaintext file."))),
+                Err(CliError::new(String::from(
+                    "Missing path of plaintext file.",
+                ))),
                 |val| {
                     target = val;
                     Ok(())
                 },
             ),
             "-o" | "--output" => args.next().map_or(
-                Err(CliError(String::from("Missing path of output file."))),
+                Err(CliError::new(String::from("Missing path of output file."))),
                 |val| {
                     output_path.push(val.as_str());
                     Ok(())
                 },
             ),
             "-c" | "--contact" => args.next().map_or(
-                Err(CliError(String::from("Missing contact name."))),
+                Err(CliError::new(String::from("Missing contact name."))),
                 |val| {
                     contact.push_str(val.as_str());
                     Ok(())
@@ -439,10 +417,15 @@ fn read_crypto_command(
                     is_path = true;
                     Ok(())
                 }
-                Some(s) => Err(CliError(String::from(format!("Invalid argument: {}", s)))),
+                Some(s) => Err(CliError::new(String::from(format!(
+                    "Invalid argument: {}",
+                    s
+                )))),
             },
         },
-        None => Err(CliError(String::from("Missing path of plaintext file."))),
+        None => Err(CliError::new(String::from(
+            "Missing path of plaintext file.",
+        ))),
     }?;
 
     Ok(OpSettings {
@@ -458,6 +441,7 @@ fn read_crypto_command(
 
 struct AppSettings {
     home: PathBuf,
+    contacts_dir: PathBuf,
     contacts: Vec<String>,
 }
 

@@ -3,7 +3,13 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone)]
-struct CliError(String);
+pub struct CliError(String);
+
+impl CliError {
+    pub fn new(message: String) -> CliError {
+        CliError(message)
+    }
+}
 
 impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -95,7 +101,7 @@ impl From<std::io::Error> for CryptographicError {
 
 impl Display for CryptographicError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}: {}", "", "")
+        write!(f, "An error occured: {}", self.kind.as_str())
     }
 }
 
