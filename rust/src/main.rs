@@ -69,6 +69,10 @@ fn main() {
 fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), CryptographicError> {
     match &settings.data {
         OpData::ContactOp { name, key_path } if settings.op == Operation::ContactAdd => {
+            if !app.contacts.contains(name) {
+                return Err(CryptographicError::new(CryptographicErrorKind::ContactAdd));
+            }
+
             // path to the key file
             let contact_path = app.home.join(".qryptex").join(name.as_str());
 
@@ -249,14 +253,6 @@ fn load_private_key(path: &Path) -> Result<RSAPrivateKey, CryptographicError> {
     }?;
     Ok(private_key)
 }
-
-//fn gen_key_pair() {
-//    let key_pair_path = "/home/laroar/Documents/keys/dev/pubKey.pem";
-//    let mut rng = OsRng;
-//    let bits = 2048;
-//    let private_key = RSAPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
-//    let public_key = RSAPublicKey::from(&private_key);
-//}
 
 fn read_key_at_path(path: &Path) -> Result<Pem, CryptographicError> {
     let bytes = fs::read(path).map_err(|_| CryptographicError::new(CryptographicErrorKind::Io))?;
