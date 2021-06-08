@@ -10,16 +10,24 @@ pub enum QryptexError {
 }
 
 impl QryptexError {
-    pub fn new_cli(err: CliError) -> QryptexError {
-        QryptexError::Cli(err)
+    pub fn new_cli(kind: CliErrorKind) -> QryptexError {
+        QryptexError::Cli(CliError(kind))
     }
 
-    pub fn new_crypto(err: CryptographicError) -> QryptexError {
-        QryptexError::Crypto(err)
+    pub fn new_crypto(kind: CryptographicErrorKind) -> QryptexError {
+        QryptexError::Crypto(CryptographicError::new(kind))
     }
 
-    pub fn new_contact(err: ContactsError) -> QryptexError {
-        QryptexError::Contact(err)
+    pub fn new_contact(kind: ContactsErrorKind) -> QryptexError {
+        QryptexError::Contact(ContactsError(kind))
+    }
+
+    pub fn as_message(&self) -> &'static str {
+        match self {
+            Self::Cli(err) => err.into(),
+            Self::Crypto(err) => err.into(),
+            Self::Contact(err) => err.into(),
+        }
     }
 }
 
@@ -32,20 +40,14 @@ impl Error for QryptexError {
 
 impl Display for QryptexError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "An error occured:\n{}",
-            match self {
-                Self::Cli(err) => err.into(),
-                Self::Crypto(err) => err.into(),
-                Self::Contact(err) => err.into(),
-            }
-        )
+        writeln!(f, "An error occured!",)?;
+        // call fmt of inner
+        write!(f, "{}", self.as_message())
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ContactsError(ContactsErrorKind);
+pub struct ContactsError(ContactsErrorKind);
 
 impl Into<&'static str> for ContactsError {
     fn into(self) -> &'static str {
@@ -53,10 +55,30 @@ impl Into<&'static str> for ContactsError {
     }
 }
 
+impl Into<&'static str> for &ContactsError {
+    fn into(self) -> &'static str {
+        self.0.into()
+    }
+}
+
+impl Display for ContactsError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        // TODO: build a cool error message here
+        write!(f, "The contact operation failed: \n")
+    }
+}
+
+impl Error for ContactsError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
 #[derive(Debug, Clone, Copy)]
 pub enum ContactsErrorKind {
     NotFound,
     ExistsAlready,
+    Io,
+    Unknown,
 }
 
 impl Into<ContactsError> for ContactsErrorKind {
@@ -68,8 +90,10 @@ impl Into<ContactsError> for ContactsErrorKind {
 impl Into<&'static str> for ContactsErrorKind {
     fn into(self) -> &'static str {
         match self {
-            NotFound => "Contact not found.",
-            ExistsAlready => "A contact with the name does already exist.",
+            Self::NotFound => "Contact not found.",
+            Self::ExistsAlready => "A contact with the name does already exist.",
+            Self::Io => "The file operation failed. Second instance running?",
+            Self::Unknown => "Something went wrong. Cause unknown.",
         }
     }
 }
@@ -83,9 +107,30 @@ impl Into<&'static str> for CliError {
     }
 }
 
+impl Into<&'static str> for &CliError {
+    fn into(self) -> &'static str {
+        self.0.into()
+    }
+}
+
 impl CliError {
     pub fn new(kind: CliErrorKind) -> CliError {
         CliError(kind)
+    }
+}
+impl Display for CliError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        // TODO: build a cool error message here
+        write!(
+            f,
+            "The command line input was invalid: " // "Invalid command"?
+        )
+    }
+}
+
+impl Error for CliError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 #[derive(Debug, Clone, Copy)]
@@ -109,16 +154,16 @@ impl Into<CliError> for CliErrorKind {
 impl Into<&'static str> for CliErrorKind {
     fn into(self) -> &'static str {
         match self {
-            MissingOperation => "Please specify an operation.",
-            MissingPlaintextPath => "Path to plaintext file expected but not found.",
-            MissingOutputPath => "Path of output file expected but not found.",
-            MissingContactName => "Please specify a contact by name for the operation.",
-            MissingModifier => {
+            Self::MissingOperation => "Please specify an operation.",
+            Self::MissingPlaintextPath => "Path to plaintext file expected but not found.",
+            Self::MissingOutputPath => "Path of output file expected but not found.",
+            Self::MissingContactName => "Please specify a contact by name for the operation.",
+            Self::MissingModifier => {
                 "A modifier was expected but not found. See the help for usage information."
             }
-            MissingNameValue => "A name for the new contact was expected but not found.",
-            MissingKeyValue => "A path to the key was expected but not found.",
-            InvalidArgument => "Unknown argument.",
+            Self::MissingNameValue => "A name for the new contact was expected but not found.",
+            Self::MissingKeyValue => "A path to the key was expected but not found.",
+            Self::InvalidArgument => "Unknown argument.",
         }
     }
 }
@@ -130,6 +175,12 @@ pub struct CryptographicError {
 }
 
 impl Into<&'static str> for CryptographicError {
+    fn into(self) -> &'static str {
+        self.kind.into()
+    }
+}
+
+impl Into<&'static str> for &CryptographicError {
     fn into(self) -> &'static str {
         self.kind.into()
     }
@@ -159,7 +210,10 @@ impl From<std::io::Error> for CryptographicError {
 impl Display for CryptographicError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
-        write!(f, "An error occured: ")
+        write!(
+            f,
+            "An error occured when attempting a cryptographic operation: "
+        )
     }
 }
 
