@@ -45,7 +45,7 @@ impl Display for QryptexError {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ContactsError(ContactsErrorKind);
+struct ContactsError(ContactsErrorKind);
 
 impl Into<&'static str> for ContactsError {
     fn into(self) -> &'static str {
@@ -74,6 +74,20 @@ impl Into<&'static str> for ContactsErrorKind {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct CliError(CliErrorKind);
+
+impl Into<&'static str> for CliError {
+    fn into(self) -> &'static str {
+        self.0.into()
+    }
+}
+
+impl CliError {
+    pub fn new(kind: CliErrorKind) -> CliError {
+        CliError(kind)
+    }
+}
 #[derive(Debug, Clone, Copy)]
 pub enum CliErrorKind {
     MissingOperation,
@@ -105,48 +119,6 @@ impl Into<&'static str> for CliErrorKind {
             MissingNameValue => "A name for the new contact was expected but not found.",
             MissingKeyValue => "A path to the key was expected but not found.",
             InvalidArgument => "Unknown argument.",
-        }
-    }
-}
-
-// "Must specify operation"
-
-#[derive(Debug, Clone, Copy)]
-pub struct CliError(CliErrorKind);
-
-impl Into<&'static str> for CliError {
-    fn into(self) -> &'static str {
-        self.0.into()
-    }
-}
-
-impl CliError {
-    pub fn new(kind: CliErrorKind) -> CliError {
-        CliError(kind)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CryptographicErrorKind {
-    Io,
-    InvalidKey,
-    Format,
-    Encryption,
-    Decryption,
-    ContactAdd,
-    ContactRemove,
-}
-
-impl Into<&'static str> for CryptographicErrorKind {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Io => "IO operation failed",
-            Self::InvalidKey => "The key was not in ",
-            Self::Format => "The data was malformed",
-            Self::Encryption => "Encrypting the data failed",
-            Self::Decryption => "Decrypting the data failed",
-            Self::ContactAdd => "Adding the contact failed",
-            Self::ContactRemove => "Removing the contact failed",
         }
     }
 }
@@ -196,6 +168,31 @@ impl Error for CryptographicError {
         match self.inner.as_ref() {
             Some(e) => Some(e.as_ref()),
             None => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CryptographicErrorKind {
+    Io,
+    InvalidKey,
+    Format,
+    Encryption,
+    Decryption,
+    ContactAdd,
+    ContactRemove,
+}
+
+impl Into<&'static str> for CryptographicErrorKind {
+    fn into(self) -> &'static str {
+        match self {
+            Self::Io => "IO operation failed",
+            Self::InvalidKey => "The key was not in ",
+            Self::Format => "The data was malformed",
+            Self::Encryption => "Encrypting the data failed",
+            Self::Decryption => "Decrypting the data failed",
+            Self::ContactAdd => "Adding the contact failed",
+            Self::ContactRemove => "Removing the contact failed",
         }
     }
 }
