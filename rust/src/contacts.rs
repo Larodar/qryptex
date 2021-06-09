@@ -37,7 +37,6 @@ pub fn delete_contact_file(contact_dir: &Path, contact_name: &str) -> std::io::R
 }
 
 pub fn init_contacts_dir(contact_dir: &Path) -> std::io::Result<()> {
-    fs::create_dir(contact_dir)?;
-
-    Ok(())
+    dbg!(contact_dir);
+    fs::create_dir(contact_dir)
 }

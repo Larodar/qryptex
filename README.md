@@ -48,17 +48,23 @@ init
 
 This command has no options or flags. It creates a .qryptex directory in the users $home and creates a keypair to use with the application.
 
+The operation must be idempotent.
+
 ### contact add
 Command variants (case independent):
 ```
 contact add
 ```
 
+Failes if there is already a contact with the same name.
+
 ### contact remove
 Command variants (case independent):
 ```
 contact remove
 ```
+
+The operation must be idempotent.
 
 ### !notImplemented export {contact name}
 Command variants (case independent):
@@ -67,3 +73,9 @@ export
 ```
 
 Exports the public key of the provided contact or, if no name was given, exports the applications public key. (-t to supply a target)
+
+# Test cases
+./qryptex init
+./qryptex contact add -n test1 -k ../../../dev_keys/user1/user1_pub.pem
+./qryptex contact del -n test1
+./qryptex enc -c test1 -t "hello world"

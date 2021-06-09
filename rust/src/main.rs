@@ -21,15 +21,21 @@ fn main() {
     };
 
     let private_key_path = "/home/larodar/Documents/keys/dev/privKey.pem";
-    let home_dir = home::home_dir().unwrap();
-    let home = home_dir.join(".qryptex").clone();
-    let contacts_dir = home_dir.join("contacts");
+    let user_home = home::home_dir().unwrap();
+    let app_home = user_home.join(".qryptex").clone();
+    let contacts_dir = app_home.join("contacts");
     let app_settings = AppSettings {
-        home,
+        home: app_home,
         contacts_dir: contacts_dir.clone(),
-        contacts: load_contact_names(contacts_dir.as_path()).unwrap(),
+        // TODO: match on op to assign empty vec directly on init?
+        contacts: match op_settings.op {
+            Operation::Init => vec![],
+            _ => load_contact_names(contacts_dir.as_path()).unwrap(),
+        },
     };
 
+    dbg!(&op_settings);
+    dbg!(&app_settings);
     let result = match op_settings.op {
         Operation::Decrypt => {
             let new_key_path = String::from_str(private_key_path).unwrap();
@@ -63,6 +69,8 @@ fn main() {
 
     if let Err(e) = result {
         eprintln!("{}", e);
+    } else {
+        println!("The operation finished successfully.");
     }
 }
 
@@ -74,7 +82,7 @@ fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexEr
             }
 
             // path to the key file
-            let contact_path = app.home.join(".qryptex").join(name.as_str());
+            let contact_path = app.contacts_dir.join(name.as_str());
 
             // contact name
             if Path::exists(contact_path.as_path()) {
@@ -83,6 +91,7 @@ fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexEr
             }
 
             let import_path = key_path.as_ref().unwrap().as_path();
+
             let bytes = fs::read(import_path)
                 .map_err(|_| QryptexError::new_contact(ContactsErrorKind::Io))?;
             let _ = pub_key_from_bytes(&bytes)?;
@@ -96,7 +105,7 @@ fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexEr
 
 fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError> {
     match &settings.data {
-        OpData::ContactOp { name, key_path: _ } if settings.op == Operation::ContactAdd => {
+        OpData::ContactOp { name, .. } if settings.op == Operation::ContactRemove => {
             // path to the key file
             contacts::delete_contact_file(app.contacts_dir.as_path(), name)
                 .map_err(|_| QryptexError::new_contact(ContactsErrorKind::Io))
@@ -107,9 +116,13 @@ fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), Qrypte
 
 fn init(settings: &AppSettings) -> std::io::Result<()> {
     // create .qryptex dir to store the information
+    println!("Creating app home at ~/.qryptex");
     fs::create_dir(settings.home.as_path())?;
     // create contacts dir to store the contact files
+    println!("Creating contact directory at ~/.qryptex/contacts");
     init_contacts_dir(settings.contacts_dir.as_path())?;
+
+    println!("Initialization complete.");
 
     // create key pair
     // TODO: figure this out
@@ -300,8 +313,8 @@ fn read_key_at_path(path: &Path) -> Result<Pem, QryptexError> {
 /// contact remove
 fn read_cli_args() -> Result<OpSettings, QryptexError> {
     let mut params = std::env::args().skip(1);
-    // operation
     match params.next() {
+        // operation
         Some(o) => match o.as_str() {
             "decrypt" | "dec" => read_crypto_command(params, Operation::Decrypt),
             "encrypt" | "enc" => read_crypto_command(params, Operation::Encrypt),
@@ -322,7 +335,7 @@ fn read_contact_command(
     let op = match args.next() {
         Some(m) => match m.as_str() {
             "add" => Operation::ContactAdd,
-            "remove" => Operation::ContactRemove,
+            "del" | "delete" => Operation::ContactRemove,
             _ => return Err(QryptexError::new_cli(CliErrorKind::MissingModifier)),
         },
         None => return Err(QryptexError::new_cli(CliErrorKind::MissingModifier)),
@@ -332,7 +345,7 @@ fn read_contact_command(
         Operation::ContactAdd => {
             // expect name and path to key file
             let mut name_opt = None;
-            let key_opt = None;
+            let mut key_opt = None;
             while let Some(s) = args.next() {
                 match s.as_str() {
                     "-n" | "--name" => match args.next().as_deref() {
@@ -345,7 +358,11 @@ fn read_contact_command(
                         Some("-n") | None => {
                             return Err(QryptexError::new_cli(CliErrorKind::MissingKeyValue))
                         }
-                        Some(val) => name_opt = Some(String::from(val)),
+                        Some(val) => {
+                            key_opt = Some(PathBuf::from_str(val).map_err(|_| {
+                                QryptexError::new_cli(CliErrorKind::InvalidArgument)
+                            })?)
+                        }
                     },
                     _ => return Err(QryptexError::new_cli(CliErrorKind::InvalidArgument)),
                 };
@@ -359,7 +376,7 @@ fn read_contact_command(
             };
 
             if key_opt == None {
-                return Err(QryptexError::new_cli(CliErrorKind::MissingNameValue));
+                return Err(QryptexError::new_cli(CliErrorKind::MissingKeyValue));
             }
 
             OpData::ContactOp {
@@ -369,9 +386,16 @@ fn read_contact_command(
         }
         Operation::ContactRemove => {
             // expect a name
-            match args.next() {
+            match args.next().as_deref() {
+                Some("-n") => match args.next() {
+                    Some(val) => OpData::ContactOp {
+                        name: val,
+                        key_path: None,
+                    },
+                    None => return Err(QryptexError::new_cli(CliErrorKind::MissingNameValue)),
+                },
                 Some(s) => OpData::ContactOp {
-                    name: s,
+                    name: String::from_str(s).unwrap(),
                     key_path: None,
                 },
                 None => return Err(QryptexError::new_cli(CliErrorKind::MissingContactName)),
@@ -450,17 +474,20 @@ fn read_crypto_command(
     })
 }
 
+#[derive(Debug)]
 struct AppSettings {
     home: PathBuf,
     contacts_dir: PathBuf,
     contacts: Vec<String>,
 }
 
+#[derive(Debug)]
 struct OpSettings {
     op: Operation,
     data: OpData,
 }
 
+#[derive(Debug)]
 enum OpData {
     Empty,
     CryptoOp {
