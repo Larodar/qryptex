@@ -45,7 +45,7 @@ fn main() {
                         is_path,
                         target,
                         contact: new_key_path,
-                        output_path: PathBuf::new(),
+                        output_path: None,
                     };
                 }
                 _ => unreachable!(),
@@ -123,7 +123,7 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             is_path,
             target,
             contact,
-            output_path: _,
+            output_path,
         } if settings.op == Operation::Encrypt => {
             let plaintext = match is_path {
                 true => std::fs::read(target)
@@ -132,13 +132,31 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             }?;
             let pub_key = load_contact(contact, app)?;
             let ciphertext = encrypt_txt(&plaintext[..], &pub_key)?;
+            if *is_path {
+                // output must be a file
+                let ciphertext_path = match output_path {
+                    Some(p) => Ok(p.clone()),
+                    None => {
+                        let mut temp = match PathBuf::from_str(target.as_str()) {
+                            Ok(t) => Ok(t),
+                            Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Format)),
+                        }?;
+                        let _res = temp.set_extension("qrx");
+                        Ok(temp)
+                    }
+                }?;
+                std::fs::write(ciphertext_path, ciphertext)
+                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))?;
+            } else {
+                // output is a small string which should be written to stdout
+                let ciphertext_str = ciphertext
+                    .iter()
+                    .map(|b| format!("{:02X}", b))
+                    .collect::<Vec<String>>()
+                    .join("");
+                println!("Success! Ciphertext: {}", ciphertext_str);
+            }
 
-            let ciphertext_str = ciphertext
-                .iter()
-                .map(|b| format!("{:02X}", b))
-                .collect::<Vec<String>>()
-                .join("");
-            println!("Success! Ciphertext: {}", ciphertext_str);
             Ok(())
         }
         _ => Err(QryptexError::new_crypto(CryptographicErrorKind::Encryption)),
@@ -151,7 +169,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             is_path,
             target,
             contact: _,
-            output_path: _,
+            output_path,
         } if settings.op == Operation::Decrypt => {
             let ciphertext = match is_path {
                 true => std::fs::read(target)
@@ -161,15 +179,33 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
 
             let private_key = load_private_key(app.home.join("private.pem").as_path())?;
             let plaintext_raw = decrypt_ciphertext(&ciphertext, &private_key)?;
-            let plaintext = match String::from_utf8(plaintext_raw) {
-                Err(_) => {
-                    eprintln!("Decrypted plaintext is invalid utf8.");
-                    return Err(QryptexError::new_crypto(CryptographicErrorKind::Format));
-                }
-                Ok(text) => text,
-            };
+            if *is_path {
+                // output must be a file
+                let plaintext_path = match output_path {
+                    Some(p) => Ok(p.clone()),
+                    None => {
+                        let temp = match PathBuf::from_str(target.as_str()) {
+                            Ok(t) => Ok(t),
+                            Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Format)),
+                        }?;
+                        // TODO: process the path
+                        Ok(temp)
+                    }
+                }?;
+                std::fs::write(plaintext_path, plaintext_raw)
+                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))?;
+            } else {
+                // output is a small string which should be written to stdout
+                let plaintext = match String::from_utf8(plaintext_raw) {
+                    Err(_) => {
+                        eprintln!("Decrypted plaintext is invalid utf8.");
+                        return Err(QryptexError::new_crypto(CryptographicErrorKind::Format));
+                    }
+                    Ok(text) => text,
+                };
+                println!("{}", plaintext);
+            }
 
-            println!("{}", plaintext);
             Ok(())
         }
         _ => {
@@ -354,7 +390,7 @@ fn read_crypto_command(
     let mut is_path = false;
     let mut target = String::new();
     let mut contact = String::new();
-    let mut output_path = PathBuf::new();
+    let mut output_path = None;
     match args.next() {
         Some(arg) => match arg.as_str() {
             "-f" | "--file" => args.next().map_or(
@@ -367,7 +403,14 @@ fn read_crypto_command(
             "-o" | "--output" => args.next().map_or(
                 Err(QryptexError::new_cli(CliErrorKind::MissingOutputPath)),
                 |val| {
-                    output_path.push(val.as_str());
+                    let path = match PathBuf::from_str(val.as_str()) {
+                        Ok(p) => match p.is_file() {
+                            true => Ok(p),
+                            false => Err(QryptexError::new_cli(CliErrorKind::InvalidOutputPath)),
+                        },
+                        Err(_) => Err(QryptexError::new_cli(CliErrorKind::InvalidOutputPath)),
+                    }?;
+                    output_path = Some(path);
                     Ok(())
                 },
             ),
@@ -424,7 +467,7 @@ enum OpData {
         is_path: bool,
         target: String,
         contact: String,
-        output_path: PathBuf,
+        output_path: Option<PathBuf>,
     },
     ContactOp {
         name: String,

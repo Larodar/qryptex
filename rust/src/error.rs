@@ -142,6 +142,7 @@ pub enum CliErrorKind {
     MissingModifier,
     MissingNameValue,
     MissingKeyValue,
+    InvalidOutputPath,
     InvalidArgument,
 }
 
@@ -164,6 +165,7 @@ impl Into<&'static str> for CliErrorKind {
             Self::MissingNameValue => "A name for the new contact was expected but not found.",
             Self::MissingKeyValue => "A path to the key was expected but not found.",
             Self::InvalidArgument => "Unknown argument.",
+            Self::InvalidOutputPath => "The output path must be a valid file location.",
         }
     }
 }
