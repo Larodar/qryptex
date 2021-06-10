@@ -24,9 +24,11 @@ fn main() {
     let user_home = home::home_dir().unwrap();
     let app_home = user_home.join(".qryptex").clone();
     let contacts_dir = app_home.join("contacts");
+    let local_keys_path = app_home.join("_self");
     let app_settings = AppSettings {
         home: app_home,
         contacts_dir: contacts_dir.clone(),
+        local_keys_path,
         // TODO: match on op to assign empty vec directly on init?
         contacts: match op_settings.op {
             Operation::Init => vec![],
@@ -122,6 +124,9 @@ fn init(settings: &AppSettings) -> std::io::Result<()> {
     println!("Creating contact directory at ~/.qryptex/contacts");
     init_contacts_dir(settings.contacts_dir.as_path())?;
 
+    println!("Creating local key pair at ~/.qryptex/_self");
+    fs::create_dir(settings.local_keys_path.as_path())?;
+
     println!("Initialization complete.");
 
     // create key pair
@@ -167,7 +172,7 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                     .map(|b| format!("{:02X}", b))
                     .collect::<Vec<String>>()
                     .join("");
-                println!("Success! Ciphertext: {}", ciphertext_str);
+                println!("Success!\nCiphertext: {}", ciphertext_str);
             }
 
             Ok(())
@@ -190,7 +195,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                 false => hex_to_bytes(&target),
             }?;
 
-            let private_key = load_private_key(app.home.join("private.pem").as_path())?;
+            let private_key = load_private_key(app.local_keys_path.join("private.pem").as_path())?;
             let plaintext_raw = decrypt_ciphertext(&ciphertext, &private_key)?;
             if *is_path {
                 // output must be a file
@@ -478,6 +483,7 @@ fn read_crypto_command(
 struct AppSettings {
     home: PathBuf,
     contacts_dir: PathBuf,
+    local_keys_path: PathBuf,
     contacts: Vec<String>,
 }
 
