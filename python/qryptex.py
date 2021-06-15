@@ -3,6 +3,7 @@ from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 import sys
 from pprint import *
+import shutil
 
 C_MOD_KEY = 'module'
 C_COMMAND_KEY = 'command'
@@ -11,7 +12,6 @@ C_FILE_FLAG_KEY = 'isfile'
 C_TARGET_KEY = 'target'
 C_CONTACT_KEY = 'contact'
 C_CONTACT_FLAG_KEY = 'iscontact'
-C_CONTACT_COMMAND_KEY = 'Contactcommand'
 C_MOD_ENC = 'encrypt'
 C_MOD_DEC = 'decrypt'
 C_MOD_INIT = 'init'
@@ -46,12 +46,12 @@ def parse_cli_args():
             arg = args[i]
             if arg in s.values():
                 pass
-            elif arg is '-f':
+            elif arg == '-f':
                 s[C_FILE_FLAG_KEY] = True
                 s[C_TARGET_KEY] = args[i+1]
-            elif arg is '-o':
+            elif arg == '-o':
                 s[C_OUT_KEY] = args[i+1]
-            elif arg is '-c' or arg is 'to':
+            elif arg == '-c' or arg == 'to':
                 s[C_CONTACT_FLAG_KEY] = True
                 s[C_CONTACT_KEY] = args[i+1]
             else:
@@ -62,35 +62,38 @@ def parse_cli_args():
         s[C_MOD_KEY] = C_MOD_CONTACT
         for i in range(2, len(args)):
             arg = args[i]
-            if arg is 'remove':
+            if arg == 'remove':
                 s[C_COMMAND_KEY] = 'remove'
                 s[C_TARGET_KEY] = args[i+1]
-            elif arg is 'add':
+            elif arg == 'add':
                 s[C_COMMAND_KEY] = 'add'
                 s[C_TARGET_KEY] = args[i+1]
                 s[C_OUT_KEY] = args[i+2]
     elif args[1] == 'init':
         s = {C_MOD_KEY: C_MOD_INIT}
-    elif args[1] == 'help':
+    elif args[1] == 'help' or args[1] == 'options':
         s = {C_MOD_KEY: C_MOD_HELP}
     return s
 
 
-class contact:
-    def addcontact():
-        directory = 'contacts'
-        parent_dir = os.path.curdir
-        path = os.path.join(parent_dir, directory)
-        os.mkdir(path)
-        os.chdir(path)
+def contact(settings):
+    if settings[C_COMMAND_KEY] == 'add':
+        dst = os.path.curdir
+        shutil.copy(settings[C_OUT_KEY], dst +
+                    '/contacts/' + settings[C_TARGET_KEY]+'.pem')
 
-    def removecontact():
-        pass
+    elif settings[C_COMMAND_KEY] == 'remove':
+        dst = os.path.curdir + '/contacts/' + settings[C_TARGET_KEY]
+        if os.path.exists(dst):
+            os.remove(dst)
+        else:
+            print('the contact does not exist')
 
-# clearifying concept of how contacts are handled
-# new folder for new contact witch public.pem file inside
-# or one folder with all publickey files, but files are named : contact.pem
-# how are other contacts public keys initially delivered
+    elif settings[C_COMMAND_KEY] == 'show':
+        dst = os.path.curdir + '/contacts'
+        os.listdir(dst)
+
+        # export /extract funtion for the public key for copying oder regenerating after drag out from folder
 
 
 def options():
@@ -107,11 +110,7 @@ def options():
 
 
 def init():
-    directory = 'contacts'
-    parent_dir = os.path.curdir
-    path = os.path.join(parent_dir, directory)
-    os.mkdir(path)
-    os.chdir(path)
+
     key = RSA.generate(2048)
     f = open('private.pem', 'wb')
     f.write(key.export_key('PEM'))
@@ -119,6 +118,12 @@ def init():
     f = open('public.pem', 'wb')
     f.write(key.public_key().export_key('PEM'))
     f.close()
+
+    directory = 'contacts'
+    parent_dir = os.path.curdir
+    path = os.path.join(parent_dir, directory)
+    os.mkdir(path)
+    os.chdir(path)
 
 
 def encrypt(plaintext):
@@ -139,7 +144,7 @@ def decrypt(ciphertext):
 
 
 settings = parse_cli_args()
-
+# print(settings)
 if settings[C_MOD_KEY] is C_MOD_ENC:
     encrypt(settings)
 elif settings[C_MOD_KEY] is C_MOD_DEC:
@@ -151,8 +156,10 @@ elif settings[C_MOD_KEY] is C_MOD_INIT:
 elif settings[C_MOD_KEY] is C_MOD_HELP:
     options()
 else:
-    print('UNKNOWN COMMAND!\n type help for further information')
+    print('UNKNOWN COMMAND!\n type "qryptex.py help" for further information')
 
+
+# errorhandling for different inplausible userinputs
 
 # if setting['op'] is 'e':
 # encrypt(settings)
