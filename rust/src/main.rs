@@ -20,7 +20,6 @@ fn main() {
         }
     };
 
-    let private_key_path = "/home/larodar/Documents/keys/dev/privKey.pem";
     let user_home = home::home_dir().unwrap();
     let app_home = user_home.join(".qryptex").clone();
     let contacts_dir = app_home.join("contacts");
@@ -36,11 +35,8 @@ fn main() {
         },
     };
 
-    dbg!(&op_settings);
-    dbg!(&app_settings);
     let result = match op_settings.op {
         Operation::Decrypt => {
-            let new_key_path = String::from_str(private_key_path).unwrap();
             // TODO: find a better way to do this
             match op_settings.data {
                 OpData::CryptoOp {
@@ -52,7 +48,7 @@ fn main() {
                     op_settings.data = OpData::CryptoOp {
                         is_path,
                         target,
-                        contact: new_key_path,
+                        contact: String::new(),
                         output_path: None,
                     };
                 }
@@ -67,6 +63,14 @@ fn main() {
         }
         Operation::ContactAdd => add_contact(&op_settings, &app_settings),
         Operation::ContactRemove => remove_contact(&op_settings, &app_settings),
+        Operation::ContactList => {
+            let _ = app_settings
+                .contacts
+                .iter()
+                .map(|c| println!("{}", c))
+                .collect::<()>();
+            Ok(())
+        }
     };
 
     if let Err(e) = result {
@@ -146,7 +150,7 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             let plaintext = match is_path {
                 true => std::fs::read(target)
                     .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io)),
-                false => hex_to_bytes(&target),
+                false => Ok(target.bytes().collect()),
             }?;
             let pub_key = load_contact(contact, app)?;
             let ciphertext = encrypt_txt(&plaintext[..], &pub_key)?;
@@ -195,8 +199,10 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                 false => hex_to_bytes(&target),
             }?;
 
-            let private_key = load_private_key(app.local_keys_path.join("private.pem").as_path())?;
+            let path = app.local_keys_path.join("private.pem");
+            let private_key = load_private_key(path.as_path())?;
             let plaintext_raw = decrypt_ciphertext(&ciphertext, &private_key)?;
+            dbg!(&plaintext_raw);
             if *is_path {
                 // output must be a file
                 let plaintext_path = match output_path {
@@ -221,7 +227,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                     }
                     Ok(text) => text,
                 };
-                println!("{}", plaintext);
+                println!("Success!\n{}", plaintext);
             }
 
             Ok(())
@@ -249,8 +255,8 @@ fn decrypt_ciphertext(
 ) -> Result<Vec<u8>, QryptexError> {
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
     let plaintext = match private_key.decrypt(padding, ciphertext) {
-        Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Encryption)),
-        Ok(ciph) => Ok(ciph),
+        Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Decryption)),
+        Ok(plain) => Ok(plain),
     }?;
 
     Ok(plaintext)
@@ -341,6 +347,7 @@ fn read_contact_command(
         Some(m) => match m.as_str() {
             "add" => Operation::ContactAdd,
             "del" | "delete" => Operation::ContactRemove,
+            "ls" | "list" => Operation::ContactList,
             _ => return Err(QryptexError::new_cli(CliErrorKind::MissingModifier)),
         },
         None => return Err(QryptexError::new_cli(CliErrorKind::MissingModifier)),
@@ -406,6 +413,7 @@ fn read_contact_command(
                 None => return Err(QryptexError::new_cli(CliErrorKind::MissingContactName)),
             }
         }
+        Operation::ContactList => OpData::Empty,
         _ => unreachable!(),
     };
 
@@ -420,8 +428,8 @@ fn read_crypto_command(
     let mut target = String::new();
     let mut contact = String::new();
     let mut output_path = None;
-    match args.next() {
-        Some(arg) => match arg.as_str() {
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
             "-f" | "--file" => args.next().map_or(
                 Err(QryptexError::new_cli(CliErrorKind::MissingPlaintextPath)),
                 |val| {
@@ -464,9 +472,8 @@ fn read_crypto_command(
                 // TODO: communicate the invalid argument
                 Some(_) => Err(QryptexError::new_cli(CliErrorKind::InvalidArgument)),
             },
-        },
-        None => Err(QryptexError::new_cli(CliErrorKind::MissingPlaintextPath)),
-    }?;
+        }?;
+    }
 
     Ok(OpSettings {
         op,
@@ -515,4 +522,5 @@ enum Operation {
     Init,
     ContactAdd,
     ContactRemove,
+    ContactList,
 }
