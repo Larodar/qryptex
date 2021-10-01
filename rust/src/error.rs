@@ -49,22 +49,22 @@ impl Display for QryptexError {
 #[derive(Debug, Clone, Copy)]
 pub struct ContactsError(ContactsErrorKind);
 
-impl Into<&'static str> for ContactsError {
-    fn into(self) -> &'static str {
-        self.0.into()
+impl From<ContactsError> for &'static str {
+    fn from(v: ContactsError) -> Self {
+        v.0.into()
     }
 }
 
-impl Into<&'static str> for &ContactsError {
-    fn into(self) -> &'static str {
-        self.0.into()
+impl From<&ContactsError> for &'static str {
+    fn from(v: &ContactsError) -> Self {
+        v.into()
     }
 }
 
 impl Display for ContactsError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
-        write!(f, "The contact operation failed: \n")
+        writeln!(f, "The contact operation failed: ")
     }
 }
 
@@ -81,19 +81,19 @@ pub enum ContactsErrorKind {
     Unknown,
 }
 
-impl Into<ContactsError> for ContactsErrorKind {
-    fn into(self) -> ContactsError {
-        ContactsError(self)
+impl From<ContactsErrorKind> for ContactsError {
+    fn from(v: ContactsErrorKind) -> Self {
+        ContactsError(v)
     }
 }
 
-impl Into<&'static str> for ContactsErrorKind {
-    fn into(self) -> &'static str {
-        match self {
-            Self::NotFound => "Contact not found.",
-            Self::ExistsAlready => "A contact with the name does already exist.",
-            Self::Io => "The file operation failed. Second instance running?",
-            Self::Unknown => "Something went wrong. Cause unknown.",
+impl From<ContactsErrorKind> for &'static str {
+    fn from(c: ContactsErrorKind) -> Self {
+        match c {
+            ContactsErrorKind::NotFound => "Contact not found.",
+            ContactsErrorKind::ExistsAlready => "A contact with the name does already exist.",
+            ContactsErrorKind::Io => "The file operation failed. Second instance running?",
+            ContactsErrorKind::Unknown => "Something went wrong. Cause unknown.",
         }
     }
 }
@@ -101,15 +101,15 @@ impl Into<&'static str> for ContactsErrorKind {
 #[derive(Debug, Clone, Copy)]
 pub struct CliError(CliErrorKind);
 
-impl Into<&'static str> for CliError {
-    fn into(self) -> &'static str {
-        self.0.into()
+impl From<CliError> for &'static str {
+    fn from(v: CliError) -> Self {
+        v.0.into()
     }
 }
 
-impl Into<&'static str> for &CliError {
-    fn into(self) -> &'static str {
-        self.0.into()
+impl From<&CliError> for &'static str {
+    fn from(v: &CliError) -> Self {
+        v.into()
     }
 }
 
@@ -146,26 +146,30 @@ pub enum CliErrorKind {
     InvalidArgument,
 }
 
-impl Into<CliError> for CliErrorKind {
-    fn into(self) -> CliError {
-        CliError(self)
+impl From<CliErrorKind> for CliError {
+    fn from(v: CliErrorKind) -> Self {
+        CliError(v)
     }
 }
 
-impl Into<&'static str> for CliErrorKind {
-    fn into(self) -> &'static str {
-        match self {
-            Self::MissingOperation => "Please specify an operation.",
-            Self::MissingPlaintextPath => "Path to plaintext file expected but not found.",
-            Self::MissingOutputPath => "Path of output file expected but not found.",
-            Self::MissingContactName => "Please specify a contact by name for the operation.",
-            Self::MissingModifier => {
+impl From<CliErrorKind> for &'static str {
+    fn from(v: CliErrorKind) -> Self {
+        match v {
+            CliErrorKind::MissingOperation => "Please specify an operation.",
+            CliErrorKind::MissingPlaintextPath => "Path to plaintext file expected but not found.",
+            CliErrorKind::MissingOutputPath => "Path of output file expected but not found.",
+            CliErrorKind::MissingContactName => {
+                "Please specify a contact by name for the operation."
+            }
+            CliErrorKind::MissingModifier => {
                 "A modifier was expected but not found. See the help for usage information."
             }
-            Self::MissingNameValue => "A name for the new contact was expected but not found.",
-            Self::MissingKeyValue => "A path to the key was expected but not found.",
-            Self::InvalidArgument => "Unknown argument.",
-            Self::InvalidOutputPath => "The output path must be a valid file location.",
+            CliErrorKind::MissingNameValue => {
+                "A name for the new contact was expected but not found."
+            }
+            CliErrorKind::MissingKeyValue => "A path to the key was expected but not found.",
+            CliErrorKind::InvalidArgument => "Unknown argument.",
+            CliErrorKind::InvalidOutputPath => "The output path must be a valid file location.",
         }
     }
 }
@@ -176,15 +180,15 @@ pub struct CryptographicError {
     inner: Option<Box<dyn Error + Send + Sync>>,
 }
 
-impl Into<&'static str> for CryptographicError {
-    fn into(self) -> &'static str {
-        self.kind.into()
+impl From<CryptographicError> for &'static str {
+    fn from(v: CryptographicError) -> Self {
+        v.kind.into()
     }
 }
 
-impl Into<&'static str> for &CryptographicError {
-    fn into(self) -> &'static str {
-        self.kind.into()
+impl From<&CryptographicError> for &'static str {
+    fn from(v: &CryptographicError) -> Self {
+        v.kind.into()
     }
 }
 
@@ -239,16 +243,16 @@ pub enum CryptographicErrorKind {
     ContactRemove,
 }
 
-impl Into<&'static str> for CryptographicErrorKind {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Io => "IO operation failed",
-            Self::InvalidKey => "The key was not in ",
-            Self::Format => "The data was malformed",
-            Self::Encryption => "Encrypting the data failed",
-            Self::Decryption => "Decrypting the data failed",
-            Self::ContactAdd => "Adding the contact failed",
-            Self::ContactRemove => "Removing the contact failed",
+impl From<CryptographicErrorKind> for &'static str {
+    fn from(v: CryptographicErrorKind) -> &'static str {
+        match v {
+            CryptographicErrorKind::Io => "IO operation failed",
+            CryptographicErrorKind::InvalidKey => "The key was not in ",
+            CryptographicErrorKind::Format => "The data was malformed",
+            CryptographicErrorKind::Encryption => "Encrypting the data failed",
+            CryptographicErrorKind::Decryption => "Decrypting the data failed",
+            CryptographicErrorKind::ContactAdd => "Adding the contact failed",
+            CryptographicErrorKind::ContactRemove => "Removing the contact failed",
         }
     }
 }

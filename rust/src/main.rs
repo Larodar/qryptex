@@ -1,7 +1,10 @@
+use aes_gcm::Aes256Gcm;
+
 use contacts::*;
 use error::{CliErrorKind, ContactsErrorKind, CryptographicErrorKind, QryptexError};
-use home;
+use rand::prelude::StdRng;
 use rand::rngs::OsRng;
+use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fs;
 use std::path::PathBuf;
@@ -21,7 +24,7 @@ fn main() {
     };
 
     let user_home = home::home_dir().unwrap();
-    let app_home = user_home.join(".qryptex").clone();
+    let app_home = user_home.join(".qryptex");
     let contacts_dir = app_home.join("contacts");
     let local_keys_path = app_home.join("_self");
     let app_settings = AppSettings {
@@ -153,7 +156,12 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                 false => Ok(target.bytes().collect()),
             }?;
             let pub_key = load_contact(contact, app)?;
-            let ciphertext = encrypt_txt(&plaintext[..], &pub_key)?;
+            // build session key
+            let (nonce, key) = generate_operation_primitives();
+            // build aes cipher
+            let cipher = Aes256Gcm::new(key);
+            let ciphertext = encrypt_txt(&plaintext[..], &cipher, &nonce)?;
+            let encrypted_key = encrypt_symmetric_key(&key, &pub_key)?;
             if *is_path {
                 // output must be a file
                 let ciphertext_path = match output_path {
@@ -196,7 +204,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             let ciphertext = match is_path {
                 true => std::fs::read(target)
                     .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io)),
-                false => hex_to_bytes(&target),
+                false => hex_to_bytes(target),
             }?;
 
             let path = app.local_keys_path.join("private.pem");
@@ -239,9 +247,20 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
     }
 }
 
-fn encrypt_txt(plaintext: &[u8], public_key: &RSAPublicKey) -> Result<Vec<u8>, QryptexError> {
-    // prepare encryption
-    let mut rng = OsRng;
+/// Generates a aes key to use for an encryption operation.
+fn generate_operation_primitives() -> ([u8; 12], [u8; 16]) {
+    let mut nonce = [0u8; 12];
+    let mut key = [0u8; 16];
+    let mut rng = StdRng::from_entropy();
+    rng.fill_bytes(&mut nonce);
+    rng.fill_bytes(&mut key);
+
+    (nonce, key)
+}
+
+///
+fn encrypt_symmetric_key(key: &[u8], public_key: &RSAPublicKey) -> Result<Vec<u8>, QryptexError> {
+    let mut rng = StdRng::from_entropy();
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
     match public_key.encrypt(&mut rng, padding, plaintext) {
         Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Encryption)),
@@ -249,17 +268,32 @@ fn encrypt_txt(plaintext: &[u8], public_key: &RSAPublicKey) -> Result<Vec<u8>, Q
     }
 }
 
-fn decrypt_ciphertext(
-    ciphertext: &[u8],
-    private_key: &RSAPrivateKey,
-) -> Result<Vec<u8>, QryptexError> {
+///
+fn decrypt_symmetric_key(key: &[u8], private_key: &RSAPrivateKey) -> Result<Vec<u8>, QryptexError> {
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
-    let plaintext = match private_key.decrypt(padding, ciphertext) {
+    let decrypted_key = match private_key.decrypt(padding, key) {
         Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Decryption)),
         Ok(plain) => Ok(plain),
     }?;
 
-    Ok(plaintext)
+    Ok(decrypted_key)
+}
+
+fn encrypt_txt(
+    plaintext: &[u8],
+    cipher: &mut Aes256Gcm,
+    nonce: &[u8; 12],
+) -> Result<Vec<u8>, QryptexError> {
+    // prepare encryption
+    cipher.encrypt(nonce, plaintext).expect("encryption failed");
+    Ok(vec![])
+}
+
+fn decrypt_ciphertext(
+    ciphertext: &[u8],
+    private_key: &RSAPrivateKey,
+) -> Result<Vec<u8>, QryptexError> {
+    Ok(vec![])
 }
 
 fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, QryptexError> {
@@ -280,14 +314,14 @@ fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, QryptexError> {
     Ok(bytes)
 }
 
-fn load_contact(contact_name: &String, app: &AppSettings) -> Result<RSAPublicKey, QryptexError> {
+fn load_contact(contact_name: &str, app: &AppSettings) -> Result<RSAPublicKey, QryptexError> {
     let bytes = contacts::load_contact_key_bytes(app.contacts_dir.as_path(), contact_name)
         .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))?;
     let pub_key = pub_key_from_bytes(&bytes)?;
     Ok(pub_key)
 }
 
-fn pub_key_from_bytes(bytes: &Vec<u8>) -> Result<RSAPublicKey, QryptexError> {
+fn pub_key_from_bytes(bytes: &[u8]) -> Result<RSAPublicKey, QryptexError> {
     let pub_pem =
         parse(bytes).map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::InvalidKey))?;
     let pub_key = match RSAPublicKey::try_from(pub_pem) {
