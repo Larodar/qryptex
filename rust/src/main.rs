@@ -216,7 +216,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             }?;
 
             let (encrypted_prefix, ciphertext) =
-                (&prefixed_ciphertext[..28], &prefixed_ciphertext[28..]);
+                (&prefixed_ciphertext[..44], &prefixed_ciphertext[44..]);
             let path = app.local_keys_path.join("private.pem");
             let private_key = load_private_key(path.as_path())?;
             let (nonce, key) = recover_primitives(encrypted_prefix, &private_key)?;
@@ -262,13 +262,13 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
 fn recover_primitives(
     prefix: &[u8],
     private_key: &RSAPrivateKey,
-) -> Result<([u8; 12], [u8; 16]), QryptexError> {
-    if prefix.len() != 28 {
+) -> Result<([u8; 12], [u8; 32]), QryptexError> {
+    if prefix.len() != 44 {
         return Err(QryptexError::new_crypto(CryptographicErrorKind::Format));
     }
 
     let mut nonce = [0u8; 12];
-    let mut key = [0u8; 16];
+    let mut key = [0u8; 32];
 
     let decrypted_prefix = decrypt_primitives(prefix, private_key)?;
     nonce.copy_from_slice(&decrypted_prefix[..12]);
