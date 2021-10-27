@@ -2,7 +2,7 @@
 name = "qryptex"
 version = "0.1.0"
 authors = ["v1p3rh0rr0r <v1p3rh0rr0r@protonmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
