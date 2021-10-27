@@ -14,7 +14,7 @@ use std::{convert::TryFrom, path::Path};
 mod contacts;
 mod error;
 
-/// The encrypted data has the following format
+/// The encrypted data has the following format:
 /// Nonce|Key|Ciphertext
 /// 12bytes|32bytes|...
 /// These first 44 bytes are RSA encrypted.
@@ -298,7 +298,7 @@ fn encrypt_primitives(key: &[u8], public_key: &RSAPublicKey) -> Result<Vec<u8>, 
     }
 }
 
-///
+/// Decrypts the prefix, which holds the nonce and the AES-Key
 fn decrypt_primitives(key: &[u8], private_key: &RSAPrivateKey) -> Result<Vec<u8>, QryptexError> {
     let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
     let decrypted_key = match private_key.decrypt(padding, key) {
@@ -315,7 +315,6 @@ fn encrypt_plaintext(
     cipher: &mut Aes256Gcm,
     nonce: &[u8; 12],
 ) -> Result<Vec<u8>, QryptexError> {
-    // prepare encryption
     let ciphertext = cipher
         .encrypt(GenericArray::from_slice(nonce), plaintext)
         .expect("encryption failed");

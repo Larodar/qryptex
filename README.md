@@ -1,10 +1,11 @@
 # qryptex
 
-A small encryption tool
+A small encryption tool to quickly encrypt a message or file and send the result over an insecure channel.
+The idea is to be able to send a password or similar over Discord for example to someone you know and not having to fight with settings.
 
 ## Rust implementation
 
-Does not support creation and storing of a key pair.
+Does not support creation and storing of a key pair. On linux we could just invoke openssl.
 Has no UI (yet?).
 
 ## Python implementation
@@ -28,7 +29,8 @@ encrypt | enc
 
 Options:
 
-* -f/ --file:       Marks the text argument as path. Qryptex will then encrypt the content of the file and save as a copy of the file.
+* -f/ --file:       Marks the text argument as path.
+    Qryptex will then encrypt the content of the file and save as a copy of the file.
 * -c/ --contact:    The contact name for which the data shall be encypted.
 * -o/ --output:     The path to a directory where the encrypted data should be written to.
 
@@ -38,13 +40,14 @@ The command encrypts the given plaintext for the selected contact and prints it 
 
 Command variants (case independent):
 
-```
+```bash
 decrypt | dec
 ```
 
 Options:
 
-* -f/ --file:       Marks the text argument as path. Qryptex will then decrypt the content of the file.
+* -f/ --file:       Marks the text argument as path.
+    Qryptex will then decrypt the content of the file.
 * -o/ --output:     The path to a directory where the decrypted data should be written to.
 
 The command decrypts the given ciphertext and prints it to stdout if the file flag (-f/--file) was NOT specified.
@@ -53,7 +56,7 @@ The command decrypts the given ciphertext and prints it to stdout if the file fl
 
 Command variants (case independent):
 
-```
+```bash
 init
 ```
 
@@ -65,7 +68,7 @@ The operation must be idempotent.
 
 Command variants (case independent):
 
-```
+```bash
 contact add
 ```
 
@@ -75,7 +78,7 @@ Failes if there is already a contact with the same name.
 
 Command variants (case independent):
 
-```
+```bash
 contact remove
 ```
 
@@ -85,7 +88,7 @@ The operation must be idempotent.
 
 Command variants (case independent):
 
-```
+```bash
 export
 ```
 
@@ -94,13 +97,17 @@ Exports the public key of the provided contact or, if no name was given, exports
 ## Test cases
 
 ### OpenSsl key pair generation
+
 Private key
-```
+
+```bash
 openssl genrsa --out private.pem
 ```
-Public key
-```
 
+Public key
+
+```bash
+openssl rsa -in private.pem -pubout > public.pem
 ```
 
 user2 keys are imported as self.
