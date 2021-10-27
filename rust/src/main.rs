@@ -16,8 +16,8 @@ mod error;
 
 /// The encrypted data has the following format
 /// Nonce|Key|Ciphertext
-/// 12bytes|16bytes|...
-/// These first 28 bytes are RSA encrypted.
+/// 12bytes|32bytes|...
+/// These first 44 bytes are RSA encrypted.
 fn main() {
     let mut op_settings = match read_cli_args() {
         Ok(s) => s,
@@ -163,9 +163,9 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             // build session key
             let (nonce, key) = generate_operation_primitives();
             // build aes cipher
-            let mut cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
+            let mut cipher = Aes256Gcm::new_from_slice(&key).unwrap();
             let ciphertext = encrypt_plaintext(&plaintext[..], &mut cipher, &nonce)?;
-            let mut prefix = [0u8; 28];
+            let mut prefix = [0u8; 44];
             prefix[..12].copy_from_slice(&nonce);
             prefix[12..].copy_from_slice(&key);
             let encrypted_prefix = encrypt_primitives(&prefix, &pub_key)?;
@@ -222,8 +222,7 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
             let (nonce, key) = recover_primitives(encrypted_prefix, &private_key)?;
 
             let mut cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
-            let plaintext_raw = decrypt_ciphertext(&ciphertext, &mut cipher, &nonce)?;
-            dbg!(&plaintext_raw);
+            let plaintext_raw = decrypt_ciphertext(ciphertext, &mut cipher, &nonce)?;
             if *is_path {
                 // output must be a file
                 let plaintext_path = match output_path {
@@ -279,9 +278,9 @@ fn recover_primitives(
 }
 
 /// Generates a aes key to use for an encryption operation.
-fn generate_operation_primitives() -> ([u8; 12], [u8; 16]) {
+fn generate_operation_primitives() -> ([u8; 12], [u8; 32]) {
     let mut nonce = [0u8; 12];
-    let mut key = [0u8; 16];
+    let mut key = [0u8; 32];
     let mut rng = StdRng::from_entropy();
     rng.fill_bytes(&mut nonce);
     rng.fill_bytes(&mut key);
