@@ -21,14 +21,6 @@ impl QryptexError {
     pub fn new_contact(kind: ContactsErrorKind) -> QryptexError {
         QryptexError::Contact(ContactsError(kind))
     }
-
-    pub fn as_message(&self) -> &'static str {
-        match self {
-            Self::Cli(err) => err.into(),
-            Self::Crypto(err) => err.into(),
-            Self::Contact(err) => err.into(),
-        }
-    }
 }
 
 impl Error for QryptexError {
@@ -42,28 +34,21 @@ impl Display for QryptexError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "An error occured!",)?;
         // call fmt of inner
-        write!(f, "{}", self.as_message())
+        match self {
+            Self::Cli(err) => err.fmt(f),
+            Self::Crypto(err) => err.fmt(f),
+            Self::Contact(err) => err.fmt(f),
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ContactsError(ContactsErrorKind);
 
-impl From<ContactsError> for &'static str {
-    fn from(v: ContactsError) -> Self {
-        v.0.into()
-    }
-}
-
-impl From<&ContactsError> for &'static str {
-    fn from(v: &ContactsError) -> Self {
-        v.into()
-    }
-}
-
 impl Display for ContactsError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
+        println!("2");
         writeln!(f, "The contact operation failed: ")
     }
 }
@@ -87,37 +72,28 @@ impl From<ContactsErrorKind> for ContactsError {
     }
 }
 
-impl From<ContactsErrorKind> for &'static str {
-    fn from(c: ContactsErrorKind) -> Self {
-        match c {
+impl Display for ContactsErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let message = match self {
             ContactsErrorKind::NotFound => "Contact not found.",
             ContactsErrorKind::ExistsAlready => "A contact with the name does already exist.",
             ContactsErrorKind::Io => "The file operation failed. Second instance running?",
             ContactsErrorKind::Unknown => "Something went wrong. Cause unknown.",
-        }
+        };
+
+        write!(f, "{}", message)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CliError(CliErrorKind);
 
-impl From<CliError> for &'static str {
-    fn from(v: CliError) -> Self {
-        v.0.into()
-    }
-}
-
-impl From<&CliError> for &'static str {
-    fn from(v: &CliError) -> Self {
-        v.into()
-    }
-}
-
 impl CliError {
     pub fn new(kind: CliErrorKind) -> CliError {
         CliError(kind)
     }
 }
+
 impl Display for CliError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
@@ -152,9 +128,9 @@ impl From<CliErrorKind> for CliError {
     }
 }
 
-impl From<CliErrorKind> for &'static str {
-    fn from(v: CliErrorKind) -> Self {
-        match v {
+impl Display for CliErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let message = match self {
             CliErrorKind::MissingOperation => "Please specify an operation.",
             CliErrorKind::MissingPlaintextPath => "Path to plaintext file expected but not found.",
             CliErrorKind::MissingOutputPath => "Path of output file expected but not found.",
@@ -170,7 +146,8 @@ impl From<CliErrorKind> for &'static str {
             CliErrorKind::MissingKeyValue => "A path to the key was expected but not found.",
             CliErrorKind::InvalidArgument => "Unknown argument.",
             CliErrorKind::InvalidOutputPath => "The output path must be a valid file location.",
-        }
+        };
+        write!(f, "{}", message)
     }
 }
 
@@ -178,18 +155,6 @@ impl From<CliErrorKind> for &'static str {
 pub struct CryptographicError {
     kind: CryptographicErrorKind,
     inner: Option<Box<dyn Error + Send + Sync>>,
-}
-
-impl From<CryptographicError> for &'static str {
-    fn from(v: CryptographicError) -> Self {
-        v.kind.into()
-    }
-}
-
-impl From<&CryptographicError> for &'static str {
-    fn from(v: &CryptographicError) -> Self {
-        v.kind.into()
-    }
 }
 
 impl CryptographicError {

@@ -27,11 +27,17 @@ fn main() {
         }
     };
 
+    let mut app_settings = build_app_settings(&op_settings);
+
+    run_command(&mut op_settings, &mut app_settings);
+}
+
+fn build_app_settings(op_settings: &OpSettings) -> AppSettings {
     let user_home = home::home_dir().unwrap();
     let app_home = user_home.join(".qryptex");
     let contacts_dir = app_home.join("contacts");
     let local_keys_path = app_home.join("_self");
-    let app_settings = AppSettings {
+    AppSettings {
         home: app_home,
         contacts_dir: contacts_dir.clone(),
         local_keys_path,
@@ -40,12 +46,14 @@ fn main() {
             Operation::Init => vec![],
             _ => load_contact_names(contacts_dir.as_path()).unwrap(),
         },
-    };
+    }
+}
 
+fn run_command(op_settings: &mut OpSettings, app_settings: &mut AppSettings) {
     let result = match op_settings.op {
         Operation::Decrypt => {
             // TODO: find a better way to do this
-            match op_settings.data {
+            match &op_settings.data {
                 OpData::CryptoOp {
                     is_path,
                     target,
@@ -53,8 +61,8 @@ fn main() {
                     output_path: _,
                 } => {
                     op_settings.data = OpData::CryptoOp {
-                        is_path,
-                        target,
+                        is_path: *is_path,
+                        target: target.clone(),
                         contact: String::new(),
                         output_path: None,
                     };
@@ -80,8 +88,12 @@ fn main() {
         }
     };
 
+    handle_result(result);
+}
+
+fn handle_result(result: Result<(), QryptexError>) {
     if let Err(e) = result {
-        eprintln!("{}", e);
+        println!("The operation resulted in an error: {}", format!("{}", e));
     } else {
         println!("The operation finished successfully.");
     }
@@ -89,31 +101,33 @@ fn main() {
 
 fn add_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError> {
     match &settings.data {
-        OpData::ContactOp { name, key_path } if settings.op == Operation::ContactAdd => {
-            if app.contacts.contains(name) {
-                return Err(QryptexError::new_contact(ContactsErrorKind::ExistsAlready));
-            }
-
-            // path to the key file
-            let contact_path = app.contacts_dir.join(name.as_str());
-
-            // contact name
-            if Path::exists(contact_path.as_path()) {
-                // TODO: handle this better, the dir may be corrupted?
-                return Err(QryptexError::new_contact(ContactsErrorKind::ExistsAlready));
-            }
-
-            let import_path = key_path.as_ref().unwrap().as_path();
-
-            let bytes = fs::read(import_path)
-                .map_err(|_| QryptexError::new_contact(ContactsErrorKind::Io))?;
-            let _ = pub_key_from_bytes(&bytes)?;
-            // assemble file content
-            fs::write(contact_path, &bytes).unwrap();
-            Ok(())
-        }
+        OpData::ContactOp {
+            name,
+            key_path: Some(path),
+        } if settings.op == Operation::ContactAdd => try_add_contact(app, name, path.as_path()),
         _ => Err(QryptexError::new_contact(ContactsErrorKind::Unknown)),
     }
+}
+
+fn try_add_contact(app: &AppSettings, name: &String, key_path: &Path) -> Result<(), QryptexError> {
+    if app.contacts.contains(name) {
+        return Err(QryptexError::new_contact(ContactsErrorKind::ExistsAlready));
+    }
+
+    // path to the key file
+    let contact_path = app.contacts_dir.join(name);
+
+    // contact name
+    if Path::exists(contact_path.as_path()) {
+        // TODO: handle this better, the dir may be corrupted?
+        return Err(QryptexError::new_contact(ContactsErrorKind::ExistsAlready));
+    }
+
+    let bytes = fs::read(key_path).map_err(|_| QryptexError::new_contact(ContactsErrorKind::Io))?;
+    let _ = pub_key_from_bytes(&bytes)?;
+    // assemble file content
+    fs::write(contact_path, &bytes).unwrap();
+    Ok(())
 }
 
 fn remove_contact(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError> {
@@ -173,19 +187,13 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                 // output must be a file
                 let ciphertext_path = match output_path {
                     Some(p) => Ok(p.clone()),
-                    None => {
-                        let mut temp = match PathBuf::from_str(target.as_str()) {
-                            Ok(t) => Ok(t),
-                            Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Format)),
-                        }?;
-                        let _res = temp.set_extension("qrx");
-                        Ok(temp)
-                    }
+                    None => PathBuf::from_str(target.as_str())
+                        .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Format)),
                 }?;
                 std::fs::write(ciphertext_path, ciphertext)
-                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))?;
+                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))
             } else {
-                // output is a small string which should be written to stdout
+                // output is a small string which can and should be written to stdout
                 let ciphertext_str = encrypted_prefix
                     .iter()
                     .chain(ciphertext.iter())
@@ -193,9 +201,8 @@ fn encrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                     .collect::<Vec<String>>()
                     .join("");
                 println!("Success!\nCiphertext: {}", ciphertext_str);
+                Ok(())
             }
-
-            Ok(())
         }
         _ => Err(QryptexError::new_crypto(CryptographicErrorKind::Encryption)),
     }
@@ -228,29 +235,20 @@ fn decrypt(settings: &OpSettings, app: &AppSettings) -> Result<(), QryptexError>
                 let plaintext_path = match output_path {
                     Some(p) => Ok(p.clone()),
                     None => {
-                        let temp = match PathBuf::from_str(target.as_str()) {
-                            Ok(t) => Ok(t),
-                            Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Format)),
-                        }?;
                         // TODO: process the path
-                        Ok(temp)
+                        PathBuf::from_str(target.as_str())
+                            .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Format))
                     }
                 }?;
                 std::fs::write(plaintext_path, plaintext_raw)
-                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))?;
+                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Io))
             } else {
                 // output is a small string which should be written to stdout
-                let plaintext = match String::from_utf8(plaintext_raw) {
-                    Err(_) => {
-                        eprintln!("Decrypted plaintext is invalid utf8.");
-                        return Err(QryptexError::new_crypto(CryptographicErrorKind::Format));
-                    }
-                    Ok(text) => text,
-                };
+                let plaintext = String::from_utf8(plaintext_raw)
+                    .map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::Format))?;
                 println!("Success!\n{}", plaintext);
+                Ok(())
             }
-
-            Ok(())
         }
         _ => {
             eprintln!("Invalid data for crypto operation.");

@@ -30,7 +30,7 @@ encrypt | enc
 Options:
 
 * -f/ --file:       Marks the text argument as path.
-    Qryptex will then encrypt the content of the file and save as a copy of the file.
+    Qryptex will then encrypt the content of the file and save it as a copy of the file.
 * -c/ --contact:    The contact name for which the data shall be encypted.
 * -o/ --output:     The path to a directory where the encrypted data should be written to.
 
