@@ -93,7 +93,7 @@ fn run_command(op_settings: &mut OpSettings, app_settings: &mut AppSettings) {
 
 fn handle_result(result: Result<(), QryptexError>) {
     if let Err(e) = result {
-        println!("The operation resulted in an error: {}", format!("{}", e));
+        println!("The operation resulted in an error: {}", e);
     } else {
         println!("The operation finished successfully.");
     }
