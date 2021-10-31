@@ -1,4 +1,4 @@
-use std::convert::{From, Into};
+use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
@@ -87,12 +87,6 @@ impl Display for ContactsErrorKind {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CliError(CliErrorKind);
-
-impl CliError {
-    pub fn new(kind: CliErrorKind) -> CliError {
-        CliError(kind)
-    }
-}
 
 impl Display for CliError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
