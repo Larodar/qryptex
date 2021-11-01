@@ -1,6 +1,6 @@
 use std::convert::From;
 use std::error::Error;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub enum QryptexError {
@@ -19,14 +19,33 @@ impl QryptexError {
     }
 
     pub fn new_contact(kind: ContactsErrorKind) -> QryptexError {
-        QryptexError::Contact(ContactsError(kind))
+        QryptexError::Contact(ContactsError::new(kind))
+    }
+}
+
+impl From<CliError> for QryptexError {
+    fn from(v: CliError) -> Self {
+        QryptexError::Cli(v)
+    }
+}
+impl From<ContactsError> for QryptexError {
+    fn from(v: ContactsError) -> Self {
+        QryptexError::Contact(v)
+    }
+}
+impl From<CryptographicError> for QryptexError {
+    fn from(v: CryptographicError) -> Self {
+        QryptexError::Crypto(v)
     }
 }
 
 impl Error for QryptexError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        // TODO: impl some source? Or return inner?
-        None
+        match self {
+            QryptexError::Cli(inner) => inner.source(),
+            QryptexError::Crypto(inner) => inner.source(),
+            QryptexError::Contact(inner) => inner.source(),
+        }
     }
 }
 
@@ -35,21 +54,43 @@ impl Display for QryptexError {
         writeln!(f, "An error occured!",)?;
         // call fmt of inner
         match self {
-            Self::Cli(err) => err.fmt(f),
-            Self::Crypto(err) => err.fmt(f),
-            Self::Contact(err) => err.fmt(f),
+            Self::Cli(err) => Display::fmt(err, f),
+            Self::Crypto(err) => Display::fmt(err, f),
+            Self::Contact(err) => Display::fmt(err, f),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ContactsError(ContactsErrorKind);
+#[derive(Debug)]
+pub struct ContactsError {
+    kind: ContactsErrorKind,
+    inner: Option<Box<dyn Error + Send + Sync>>,
+}
+
+impl ContactsError {
+    pub fn new(kind: ContactsErrorKind) -> ContactsError {
+        ContactsError { kind, inner: None }
+    }
+
+    pub fn with_inner(
+        kind: ContactsErrorKind,
+        inner: Box<dyn Error + Send + Sync>,
+    ) -> ContactsError {
+        ContactsError {
+            kind,
+            inner: Some(inner),
+        }
+    }
+}
 
 impl Display for ContactsError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
-        println!("2");
-        writeln!(f, "The contact operation failed: ")
+        let message = match &self.inner {
+            Some(e) => format!("{}", e),
+            None => format!("{}", self.kind),
+        };
+        writeln!(f, "The contact operation failed: {}", message.as_str())
     }
 }
 
@@ -68,7 +109,7 @@ pub enum ContactsErrorKind {
 
 impl From<ContactsErrorKind> for ContactsError {
     fn from(v: ContactsErrorKind) -> Self {
-        ContactsError(v)
+        ContactsError::new(v)
     }
 }
 
@@ -77,7 +118,7 @@ impl Display for ContactsErrorKind {
         let message = match self {
             ContactsErrorKind::NotFound => "Contact not found.",
             ContactsErrorKind::ExistsAlready => "A contact with the name does already exist.",
-            ContactsErrorKind::Io => "The file operation failed. Second instance running?",
+            ContactsErrorKind::Io => "The file operation failed.",
             ContactsErrorKind::Unknown => "Something went wrong. Cause unknown.",
         };
 
@@ -155,6 +196,16 @@ impl CryptographicError {
     pub fn new(kind: CryptographicErrorKind) -> CryptographicError {
         CryptographicError { kind, inner: None }
     }
+
+    pub fn with_inner(
+        kind: CryptographicErrorKind,
+        inner: Box<dyn Error + Send + Sync>,
+    ) -> CryptographicError {
+        CryptographicError {
+            kind,
+            inner: Some(inner),
+        }
+    }
 }
 
 impl From<CryptographicErrorKind> for CryptographicError {
@@ -175,9 +226,14 @@ impl From<std::io::Error> for CryptographicError {
 impl Display for CryptographicError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         // TODO: build a cool error message here
+        let info = match self.source() {
+            Some(s) => format!("{}", s),
+            None => format!("{}", self.kind),
+        };
         write!(
             f,
-            "An error occured when attempting a cryptographic operation: "
+            "An error occured when attempting a cryptographic operation: {}",
+            info.as_str()
         )
     }
 }
@@ -198,20 +254,17 @@ pub enum CryptographicErrorKind {
     Format,
     Encryption,
     Decryption,
-    ContactAdd,
-    ContactRemove,
 }
 
-impl From<CryptographicErrorKind> for &'static str {
-    fn from(v: CryptographicErrorKind) -> &'static str {
-        match v {
+impl Display for CryptographicErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let message = match self {
             CryptographicErrorKind::Io => "IO operation failed",
             CryptographicErrorKind::InvalidKey => "The key was not in ",
             CryptographicErrorKind::Format => "The data was malformed",
             CryptographicErrorKind::Encryption => "Encrypting the data failed",
             CryptographicErrorKind::Decryption => "Decrypting the data failed",
-            CryptographicErrorKind::ContactAdd => "Adding the contact failed",
-            CryptographicErrorKind::ContactRemove => "Removing the contact failed",
-        }
+        };
+        write!(f, "{}", message)
     }
 }

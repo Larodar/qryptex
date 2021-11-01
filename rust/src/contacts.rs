@@ -23,6 +23,7 @@ pub fn load_contact_names(contact_dir: &Path) -> std::io::Result<Vec<String>> {
 
 pub fn load_contact_key_bytes(contact_dir: &Path, contact_name: &str) -> std::io::Result<Vec<u8>> {
     let path = contact_dir.join(contact_name);
+    dbg!(&path);
     let buff = fs::read(path)?;
     Ok(buff)
 }
