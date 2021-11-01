@@ -19,7 +19,8 @@ mod error;
 /// 12bytes|32bytes|...
 /// These first 44 bytes are RSA encrypted.
 fn main() {
-    let op = match read_cli_args() {
+    let app_settings = build_app_settings();
+    let op = match read_cli_args(&mut app_settings) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{}", e);
@@ -27,25 +28,20 @@ fn main() {
         }
     };
 
-    let app_settings = build_app_settings(&op);
     run_command(op, app_settings);
 }
 
-fn build_app_settings(op: &Operation) -> AppSettings {
+fn build_app_settings() -> AppSettings {
     let user_home = home::home_dir().unwrap();
     dbg!(&user_home);
-    let app_home = user_home.join(".qryptex");
+    let app_home = user_home.join(".qryptex_dev");
     let contacts_dir = app_home.join("contacts");
     let local_keys_path = app_home.join("_self");
     AppSettings {
         home: app_home,
         contacts_dir: contacts_dir.clone(),
         local_keys_path,
-        // TODO: match on op to assign empty vec directly on init?
-        contacts: match op {
-            Operation::Init => vec![],
-            _ => load_contact_names(contacts_dir.as_path()).unwrap(),
-        },
+        contacts: vec![],
     }
 }
 
@@ -85,7 +81,6 @@ fn handle_result(result: Result<(), QryptexError>) {
 /// Adds the configured contact to contacts.
 /// Returns an error otherwise.
 fn add_contact(context: ContactOp, app: AppSettings) -> Result<(), QryptexError> {
-    dbg!(&context);
     if app.contacts.contains(&context.name) {
         Err(QryptexError::new_contact(ContactsErrorKind::ExistsAlready))
     } else {
@@ -128,13 +123,9 @@ fn remove_contact(context: ContactOp, app: AppSettings) -> Result<(), QryptexErr
 
 fn init(settings: AppSettings) -> std::io::Result<()> {
     // create .qryptex dir to store the information
-    println!("Creating app home at ~/.qryptex");
     fs::create_dir(settings.home.as_path())?;
     // create contacts dir to store the contact files
-    println!("Creating contact directory at ~/.qryptex/contacts");
     init_contacts_dir(settings.contacts_dir.as_path())?;
-
-    println!("Creating local key pair at ~/.qryptex/_self");
     fs::create_dir(settings.local_keys_path.as_path())?;
 
     println!("Initialization complete.");
@@ -359,9 +350,9 @@ fn read_key_at_path(path: &Path) -> Result<Pem, QryptexError> {
 /// export
 /// contact add
 /// contact remove
-fn read_cli_args() -> Result<Operation, QryptexError> {
+fn read_cli_args(settings: &mut AppSettings) -> Result<Operation, QryptexError> {
     let mut params = std::env::args().skip(1);
-    match params.next() {
+    let op = match params.next() {
         // operation
         Some(o) => match o.as_str() {
             "decrypt" | "dec" => read_crypto_command(params, Operation::Decrypt(None)),
@@ -371,7 +362,13 @@ fn read_cli_args() -> Result<Operation, QryptexError> {
             _ => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
         },
         None => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
+    }?;
+
+    if params.last() == Some("--debug".to_string()) {
+        settings.debug = true;
     }
+
+    Ok(op)
 }
 
 fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<Operation, QryptexError> {
@@ -490,7 +487,7 @@ fn read_crypto_command(
                     Ok(())
                 },
             ),
-            _ => match args.next().as_deref() {
+            temp => match args.next().as_deref() {
                 None => {
                     target.push_str(arg.as_str());
                     is_path = false;
@@ -521,13 +518,20 @@ struct AppSettings {
     contacts_dir: PathBuf,
     local_keys_path: PathBuf,
     contacts: Vec<String>,
+    debug: bool,
 }
 
+/// Contains configuration information for a cryptographic operation.
 #[derive(Debug, Clone, PartialEq)]
 struct CryptoOp {
+    /// Shows whether or not the provided string is a path to a file, which is to be encrypted
     is_path: bool,
+    /// Contains either the plaintext for the crypto operation or a path to a file, depending on
+    /// the value of the is_path flag.
     target: String,
+    /// The name of the contact, who receives the message.
     contact: String,
+    /// A path to which the ciphertext will be written.
     output_path: Option<PathBuf>,
 }
 #[derive(Debug, Clone, PartialEq)]
