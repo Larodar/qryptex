@@ -19,8 +19,7 @@ mod error;
 /// 12bytes|32bytes|...
 /// These first 44 bytes are RSA encrypted.
 fn main() {
-    let app_settings = build_app_settings();
-    let op = match read_cli_args(&mut app_settings) {
+    let (op, dbg) = match read_cli_args() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{}", e);
@@ -28,13 +27,18 @@ fn main() {
         }
     };
 
+    let app_settings = build_app_settings(dbg);
     run_command(op, app_settings);
 }
 
-fn build_app_settings() -> AppSettings {
+fn build_app_settings(dbg: bool) -> AppSettings {
     let user_home = home::home_dir().unwrap();
-    dbg!(&user_home);
-    let app_home = user_home.join(".qryptex_dev");
+    let app_home = match dbg {
+        true => user_home.join(".qryptex_dev"),
+        false => user_home.join(".qryptex"),
+    };
+
+    dbg!(&app_home);
     let contacts_dir = app_home.join("contacts");
     let local_keys_path = app_home.join("_self");
     AppSettings {
@@ -42,6 +46,7 @@ fn build_app_settings() -> AppSettings {
         contacts_dir: contacts_dir.clone(),
         local_keys_path,
         contacts: vec![],
+        debug: false,
     }
 }
 
@@ -350,28 +355,26 @@ fn read_key_at_path(path: &Path) -> Result<Pem, QryptexError> {
 /// export
 /// contact add
 /// contact remove
-fn read_cli_args(settings: &mut AppSettings) -> Result<Operation, QryptexError> {
+fn read_cli_args() -> Result<(Operation, bool), QryptexError> {
     let mut params = std::env::args().skip(1);
-    let op = match params.next() {
+    let op = match &params.next() {
         // operation
         Some(o) => match o.as_str() {
-            "decrypt" | "dec" => read_crypto_command(params, Operation::Decrypt(None)),
-            "encrypt" | "enc" => read_crypto_command(params, Operation::Encrypt(None)),
-            "contact" => read_contact_command(params),
+            "decrypt" | "dec" => read_crypto_command(&mut params, Operation::Decrypt(None)),
+            "encrypt" | "enc" => read_crypto_command(&mut params, Operation::Encrypt(None)),
+            "contact" => read_contact_command(&mut params),
             "init" => Ok(Operation::Init),
             _ => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
         },
         None => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
     }?;
 
-    if params.last() == Some("--debug".to_string()) {
-        settings.debug = true;
-    }
-
-    Ok(op)
+    Ok((op, std::env::args().last() == Some("--debug".to_string())))
 }
 
-fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<Operation, QryptexError> {
+fn read_contact_command(
+    args: &mut impl Iterator<Item = String>,
+) -> Result<Operation, QryptexError> {
     let op = match args.next() {
         Some(m) => match m.as_str() {
             "add" => Operation::ContactAdd(None),
@@ -405,6 +408,7 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<Operat
                             })?)
                         }
                     },
+                    "--debug" => {}
                     _ => return Err(QryptexError::new_cli(CliErrorKind::InvalidArgument)),
                 };
             }
@@ -450,7 +454,7 @@ fn read_contact_command(mut args: impl Iterator<Item = String>) -> Result<Operat
 }
 
 fn read_crypto_command(
-    mut args: impl Iterator<Item = String>,
+    args: &mut impl Iterator<Item = String>,
     op: Operation,
 ) -> Result<Operation, QryptexError> {
     let mut is_path = false;
@@ -487,8 +491,9 @@ fn read_crypto_command(
                     Ok(())
                 },
             ),
-            temp => match args.next().as_deref() {
-                None => {
+            "--debug" => Ok(()),
+            _ => match args.next().as_deref() {
+                None | Some("--debug") => {
                     target.push_str(arg.as_str());
                     is_path = false;
                     Ok(())
