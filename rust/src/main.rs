@@ -17,13 +17,14 @@ mod error;
 /// The encrypted data has the following format:
 /// Nonce|Key|Ciphertext
 /// 12bytes|32bytes|...
-/// These first 44 bytes are RSA encrypted.
+/// These first 44 bytes are RSA encrypted and therefore
+/// form a 256 byte long prefix.
 fn main() {
     let (op, dbg) = match read_cli_args() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{}", e);
-            return;
+            std::process::exit(1);
         }
     };
 
@@ -38,14 +39,17 @@ fn build_app_settings(dbg: bool) -> AppSettings {
         false => user_home.join(".qryptex"),
     };
 
-    dbg!(&app_home);
     let contacts_dir = app_home.join("contacts");
+    let contacts = match load_contact_names(contacts_dir.as_path()) {
+        Ok(c) => c,
+        Err(_) => vec![],
+    };
     let local_keys_path = app_home.join("_self");
     AppSettings {
         home: app_home,
-        contacts_dir: contacts_dir.clone(),
+        contacts_dir,
         local_keys_path,
-        contacts: vec![],
+        contacts,
         debug: false,
     }
 }
@@ -78,6 +82,7 @@ fn run_command(op: Operation, app_settings: AppSettings) {
 fn handle_result(result: Result<(), QryptexError>) {
     if let Err(e) = result {
         println!("The operation resulted in an error: {}", e);
+        std::process::exit(1);
     } else {
         println!("The operation finished successfully.");
     }
@@ -130,7 +135,7 @@ fn init(settings: AppSettings) -> std::io::Result<()> {
     // create .qryptex dir to store the information
     fs::create_dir(settings.home.as_path())?;
     // create contacts dir to store the contact files
-    init_contacts_dir(settings.contacts_dir.as_path())?;
+    create_dir_graceful(settings.contacts_dir.as_path())?;
     fs::create_dir(settings.local_keys_path.as_path())?;
 
     println!("Initialization complete.");
@@ -327,10 +332,8 @@ fn load_contact(contact_name: &str, app: AppSettings) -> Result<RSAPublicKey, Qr
 }
 
 fn pub_key_from_bytes(bytes: &[u8]) -> Result<RSAPublicKey, QryptexError> {
-    let pub_pem = parse(bytes).map_err(|e| {
-        dbg!(e);
-        QryptexError::new_crypto(CryptographicErrorKind::InvalidKey)
-    })?;
+    let pub_pem =
+        parse(bytes).map_err(|_| QryptexError::new_crypto(CryptographicErrorKind::InvalidKey))?;
     let pub_key = match RSAPublicKey::try_from(pub_pem) {
         Err(_) => Err(QryptexError::new_crypto(CryptographicErrorKind::Format)),
         Ok(key) => Ok(key),
@@ -364,7 +367,7 @@ fn read_key_at_path(path: &Path) -> Result<Pem, QryptexError> {
 /// contact add
 /// contact remove
 fn read_cli_args() -> Result<(Operation, bool), QryptexError> {
-    let mut params = std::env::args().skip(1);
+    let mut params = std::env::args().skip(1).peekable();
     let op = match &params.next() {
         // operation
         Some(o) => match o.as_str() {
@@ -461,8 +464,8 @@ fn read_contact_command(
     }
 }
 
-fn read_crypto_command(
-    args: &mut impl Iterator<Item = String>,
+fn read_crypto_command<I: Iterator<Item = String>>(
+    args: &mut std::iter::Peekable<I>,
     op: Operation,
 ) -> Result<Operation, QryptexError> {
     let mut is_path = false;
@@ -500,29 +503,48 @@ fn read_crypto_command(
                 },
             ),
             "--debug" => Ok(()),
-            _ => match args.next().as_deref() {
-                None | Some("--debug") => {
+            _ => {
+                if let Some(s) = args.peek() {
+                    match s.as_str() {
+                        "--debug" => {
+                            target.push_str(arg.as_str());
+                            is_path = false;
+                            Ok(())
+                        }
+                        "-f" => {
+                            target.push_str(arg.as_str());
+                            is_path = true;
+
+                            Ok(())
+                        }
+                        _ => Err(QryptexError::new_cli(CliErrorKind::InvalidArgument)),
+                    }
+                } else {
                     target.push_str(arg.as_str());
                     is_path = false;
                     Ok(())
                 }
-                Some("-f") => {
-                    target.push_str(arg.as_str());
-                    is_path = true;
-                    Ok(())
-                }
-                // TODO: communicate the invalid argument
-                Some(_) => Err(QryptexError::new_cli(CliErrorKind::InvalidArgument)),
-            },
+            }
         }?;
     }
 
-    Ok(op.with_crypto_data(CryptoOp {
-        is_path,
-        target,
-        contact,
-        output_path,
-    }))
+    if target.is_empty() {
+        let kind = if is_path {
+            CliErrorKind::MissingPlaintextPath
+        } else {
+            CliErrorKind::MissingPlaintext
+        };
+        Err(QryptexError::new_cli(kind))
+    } else if contact.is_empty() {
+        Err(QryptexError::new_cli(CliErrorKind::MissingContactName))
+    } else {
+        Ok(op.with_crypto_data(CryptoOp {
+            is_path,
+            target,
+            contact,
+            output_path,
+        }))
+    }
 }
 
 #[derive(Debug)]

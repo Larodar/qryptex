@@ -1,6 +1,6 @@
 use std::convert::From;
 use std::error::Error;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
 pub enum QryptexError {
@@ -51,12 +51,11 @@ impl Error for QryptexError {
 
 impl Display for QryptexError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "An error occured!",)?;
         // call fmt of inner
         match self {
-            Self::Cli(err) => Display::fmt(err, f),
-            Self::Crypto(err) => Display::fmt(err, f),
-            Self::Contact(err) => Display::fmt(err, f),
+            Self::Cli(err) => err.fmt(f),
+            Self::Crypto(err) => err.fmt(f),
+            Self::Contact(err) => err.fmt(f),
         }
     }
 }
@@ -131,11 +130,11 @@ pub struct CliError(CliErrorKind);
 
 impl Display for CliError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        // TODO: build a cool error message here
-        write!(
+        writeln!(
             f,
-            "The command line input was invalid: " // "Invalid command"?
-        )
+            "The command line input was invalid:", // "Invalid command"?
+        )?;
+        self.0.fmt(f)
     }
 }
 
@@ -144,9 +143,11 @@ impl Error for CliError {
         None
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub enum CliErrorKind {
     MissingOperation,
+    MissingPlaintext,
     MissingPlaintextPath,
     MissingOutputPath,
     MissingContactName,
@@ -168,6 +169,7 @@ impl Display for CliErrorKind {
         let message = match self {
             CliErrorKind::MissingOperation => "Please specify an operation.",
             CliErrorKind::MissingPlaintextPath => "Path to plaintext file expected but not found.",
+            CliErrorKind::MissingPlaintext => "No plaintext was supplied.",
             CliErrorKind::MissingOutputPath => "Path of output file expected but not found.",
             CliErrorKind::MissingContactName => {
                 "Please specify a contact by name for the operation."
@@ -230,9 +232,9 @@ impl Display for CryptographicError {
             Some(s) => format!("{}", s),
             None => format!("{}", self.kind),
         };
-        write!(
+        writeln!(
             f,
-            "An error occured when attempting a cryptographic operation: {}",
+            "The cryptographic operation failed:\r\n{}",
             info.as_str()
         )
     }
