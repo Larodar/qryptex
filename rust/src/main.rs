@@ -3,7 +3,6 @@ use aes_gcm::Aes256Gcm;
 
 use contacts::*;
 use error::{CliErrorKind, ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
-use path_clean::PathClean;
 use rand::prelude::StdRng;
 use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
@@ -422,7 +421,7 @@ fn read_contact_command(
                             let key_path = PathBuf::from_str(val).map_err(|_| {
                                 QryptexError::new_cli(CliErrorKind::InvalidArgument)
                             })?;
-                            key_opt = Some(key_path.clean());
+                            key_opt = Some(key_path);
                         }
                     },
                     "--debug" => {}
@@ -498,7 +497,7 @@ fn read_crypto_command<I: Iterator<Item = String>>(
                         },
                         Err(_) => Err(QryptexError::new_cli(CliErrorKind::InvalidOutputPath)),
                     }?;
-                    output_path = Some(path);
+                    output_path = Some(resolve_tilde(path));
                     Ok(())
                 },
             ),
@@ -545,7 +544,7 @@ fn read_crypto_command<I: Iterator<Item = String>>(
         Err(QryptexError::new_cli(CliErrorKind::MissingContactName))
     } else {
         let t = match is_path {
-            true => CryptoTarget::new_file(PathBuf::from(target).clean()),
+            true => CryptoTarget::new_file(resolve_tilde(target)),
             false => CryptoTarget::new_text(target),
         };
         Ok(op.with_crypto_data(CryptoOp {
@@ -637,5 +636,16 @@ impl Operation {
             Operation::ContactRemove(_) => Operation::ContactRemove(Some(data)),
             _ => panic!("Cannot add contact command data to non-contact operation."),
         }
+    }
+}
+
+fn resolve_tilde<T: AsRef<Path>>(path: T) -> PathBuf {
+    let p = path.as_ref();
+    if path.as_ref().starts_with("~") {
+        let mut new_path = home::home_dir().unwrap();
+        new_path.push(p.strip_prefix("~").unwrap());
+        new_path
+    } else {
+        PathBuf::from(p)
     }
 }
