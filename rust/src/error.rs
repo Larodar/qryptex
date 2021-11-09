@@ -2,6 +2,8 @@ use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+use aes_gcm::AesGcm;
+
 #[derive(Debug)]
 pub enum QryptexError {
     Cli(CliError),
@@ -191,28 +193,42 @@ impl Display for CliErrorKind {
 #[derive(Debug)]
 pub struct CryptographicError {
     kind: CryptographicErrorKind,
-    inner: Option<Box<dyn Error + Send + Sync>>,
+    inner: InnerError,
 }
 
 impl CryptographicError {
     pub fn new(kind: CryptographicErrorKind) -> CryptographicError {
-        CryptographicError { kind, inner: None }
-    }
-
-    pub fn with_inner(
-        kind: CryptographicErrorKind,
-        inner: Box<dyn Error + Send + Sync>,
-    ) -> CryptographicError {
         CryptographicError {
             kind,
-            inner: Some(inner),
+            inner: InnerError::None,
         }
+    }
+
+    pub fn with_inner(kind: CryptographicErrorKind, inner: InnerError) -> CryptographicError {
+        CryptographicError { kind, inner }
+    }
+}
+
+#[derive(Debug)]
+pub enum InnerError {
+    None,
+    AesGcm(aes_gcm::Error),
+    Io(std::io::Error),
+    Other(Box<dyn Error>),
+}
+
+impl AsRef<InnerError> for InnerError {
+    fn as_ref(&self) -> &InnerError {
+        self
     }
 }
 
 impl From<CryptographicErrorKind> for CryptographicError {
     fn from(kind: CryptographicErrorKind) -> CryptographicError {
-        CryptographicError { kind, inner: None }
+        CryptographicError {
+            kind,
+            inner: InnerError::None,
+        }
     }
 }
 
@@ -220,7 +236,7 @@ impl From<std::io::Error> for CryptographicError {
     fn from(io_err: std::io::Error) -> CryptographicError {
         CryptographicError {
             kind: CryptographicErrorKind::Io,
-            inner: Some(Box::new(io_err)),
+            inner: InnerError::Io(io_err),
         }
     }
 }
@@ -242,9 +258,10 @@ impl Display for CryptographicError {
 
 impl Error for CryptographicError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self.inner.as_ref() {
-            Some(e) => Some(e.as_ref()),
-            None => None,
+        match &self.inner {
+            InnerError::Other(e) => Some(e.as_ref()),
+            InnerError::Io(e) => Some(e),
+            _ => None,
         }
     }
 }

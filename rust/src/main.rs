@@ -1,19 +1,20 @@
 use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 
+use crate::error::CryptographicError;
+use crate::error::InnerError;
 use crate::types::AppSettings;
 use crate::types::ContactOp;
 use crate::types::CryptoOp;
 use crate::types::CryptoTarget;
 use crate::types::Operation;
 use contacts::*;
-use error::{CliErrorKind, ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
+use error::{ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
 use rand::prelude::StdRng;
 use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fs;
-use std::path::PathBuf;
-use std::str::FromStr;
+
 use std::{convert::TryFrom, path::Path};
 
 mod cli;
@@ -145,7 +146,9 @@ fn encrypt(context: CryptoOp, app: AppSettings) -> Result<(), QryptexError> {
     // build session key
     let (nonce, key) = generate_operation_primitives();
     // build aes cipher
-    let mut cipher = Aes256Gcm::new_from_slice(&key).unwrap();
+    let mut cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| {
+        CryptographicError::with_inner(CryptographicErrorKind::Encryption, InnerError::AesGcm(e))
+    })?;
     println!("encrypting...");
     let ciphertext = encrypt_plaintext(&plaintext[..], &mut cipher, &nonce)?;
     let mut prefix = [0u8; 44];
@@ -271,7 +274,12 @@ fn encrypt_plaintext(
 ) -> Result<Vec<u8>, QryptexError> {
     let ciphertext = cipher
         .encrypt(GenericArray::from_slice(nonce), plaintext)
-        .expect("encryption failed");
+        .map_err(|e| {
+            CryptographicError::with_inner(
+                CryptographicErrorKind::Encryption,
+                InnerError::AesGcm(e),
+            )
+        })?;
     Ok(ciphertext)
 }
 
