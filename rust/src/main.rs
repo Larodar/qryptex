@@ -2,6 +2,10 @@ use aes_gcm::aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes256Gcm;
 
 use crate::types::AppSettings;
+use crate::types::ContactOp;
+use crate::types::CryptoOp;
+use crate::types::CryptoTarget;
+use crate::types::Operation;
 use contacts::*;
 use error::{CliErrorKind, ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
 use rand::prelude::StdRng;

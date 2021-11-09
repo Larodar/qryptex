@@ -1,3 +1,4 @@
+use crate::contacts;
 use std::path::PathBuf;
 
 pub fn build_app_settings(dbg: bool) -> AppSettings {
@@ -8,7 +9,7 @@ pub fn build_app_settings(dbg: bool) -> AppSettings {
     };
 
     let contacts_dir = app_home.join("contacts");
-    let contacts = match load_contact_names(contacts_dir.as_path()) {
+    let contacts = match contacts::load_contact_names(contacts_dir.as_path()) {
         Ok(c) => c,
         Err(_) => vec![],
     };
@@ -37,11 +38,11 @@ pub struct CryptoOp {
     /// Shows whether or not the provided string is a path to a file, which is to be encrypted
     /// Contains either the plaintext for the crypto operation or a path to a file, depending on
     /// the value of the is_path flag.
-    target: CryptoTarget,
+    pub target: CryptoTarget,
     /// The name of the contact, who receives the message.
-    contact: String,
+    pub contact: String,
     /// A path to which the ciphertext will be written.
-    output_path: Option<PathBuf>,
+    pub output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,8 +75,8 @@ impl From<String> for CryptoTarget {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContactOp {
-    name: String,
-    key_path: Option<PathBuf>,
+    pub name: String,
+    pub key_path: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq)]
