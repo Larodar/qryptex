@@ -1,7 +1,7 @@
 # qryptex
 
-A small encryption tool to quickly encrypt a message or file and send the result over an insecure channel.
-The idea is to be able to send a password or similar over Discord for example to someone you know and not having to fight with settings.
+A small encryption tool to quickly encrypt a message or file and send the result over an insecure channel (Discord, Slack, etc).
+The idea is to be able to send a password or files containing sensitive data to someone you know and not having to fight with settings or worry about the channel.
 
 ## Rust implementation
 
@@ -13,13 +13,11 @@ Has no UI (yet?).
 Does not run without a python installation and has a dependency to the cryptodome package.
 Has no UI (yet?).
 
-## CLI Interface
+## Usage
 
 Usage: qryptex [option(s)]
 
-### Options
-
-#### Encrypt
+### Encrypt
 
 Command variants (case independent):
 
@@ -36,7 +34,7 @@ Options:
 
 The command encrypts the given plaintext for the selected contact and prints it to stdout if the file flag (-f/--file) was NOT specified. Otherwise a new file next to the target is created.
 
-#### Decrypt
+### Decrypt
 
 Command variants (case independent):
 
@@ -52,7 +50,7 @@ Options:
 
 The command decrypts the given ciphertext and prints it to stdout if the file flag (-f/--file) was NOT specified.
 
-#### Init
+### Init
 
 Command variants (case independent):
 
@@ -61,30 +59,36 @@ init
 ```
 
 This command has no options or flags. It creates a .qryptex directory in the users $home and creates a keypair to use with the application.
+If the directory does already exist, nothing is changed.
 
-The operation must be idempotent.
+## Contacts
 
-#### contact add
+A contact is a file containing the public key against which to encrypt.
+They are stored in *~/.qryptex/contacts/*. The name of the contact acts as a key to load the cryptographic key for the encryption operations.
 
-Command variants (case independent):
-
-```bash
-contact add
-```
-
-Failes if there is already a contact with the same name.
-
-#### contact remove
+### contact add
 
 Command variants (case independent):
 
 ```bash
-contact remove
+contact add -n name -k path/to/key.pem
+contact add -name name -key path/to/key.pem
 ```
 
-The operation must be idempotent.
+This command fails if there is already a contact with the same name.
 
-#### !notImplemented export {contact name}
+### contact remove
+
+Command variants (case independent):
+
+```bash
+contact remove --name name
+contact rem -n name
+contact delete --name name
+contact del -n name
+```
+
+### !notImplemented export {contact name}
 
 Command variants (case independent):
 
@@ -118,3 +122,6 @@ user2 keys are imported as self.
 ./qryptex contact ls
 ./qryptex enc -c test1 "this is a test"
 cargo run -- enc -c test1 "this is a test"
+
+There is a *--debug* flag implemented, which switches the qryptex home dir to .qryptex_dev.
+The implementation is a quickfix. Expect it to not work properly.

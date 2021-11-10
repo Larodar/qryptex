@@ -2,8 +2,6 @@ use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
-use aes_gcm::AesGcm;
-
 #[derive(Debug)]
 pub enum QryptexError {
     Cli(CliError),
@@ -30,11 +28,13 @@ impl From<CliError> for QryptexError {
         QryptexError::Cli(v)
     }
 }
+
 impl From<ContactsError> for QryptexError {
     fn from(v: ContactsError) -> Self {
         QryptexError::Contact(v)
     }
 }
+
 impl From<CryptographicError> for QryptexError {
     fn from(v: CryptographicError) -> Self {
         QryptexError::Crypto(v)
@@ -100,6 +100,7 @@ impl Error for ContactsError {
         None
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub enum ContactsErrorKind {
     NotFound,
