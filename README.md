@@ -1,4 +1,5 @@
 # qryptex
+![rust main](https://github.com/Larodar/qryptex/actions/workflows/rust.yml/badge.svg)
 
 A small encryption tool to quickly encrypt a message or file and send the result over an insecure channel (Discord, Slack, etc).
 The idea is to be able to send a password or files containing sensitive data to someone you know and not having to fight with settings or worry about the channel.
@@ -7,6 +8,7 @@ The idea is to be able to send a password or files containing sensitive data to 
 
 Does not support creation and storing of a key pair. On linux we could just invoke openssl.
 Has no UI (yet?).
+Tests are missing!
 
 ## Python implementation
 
