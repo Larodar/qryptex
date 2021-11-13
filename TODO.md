@@ -11,11 +11,6 @@ This is a loose collection of features to implement.
 |10|Release Pipeline|When the core features and tests are done, let's make a 0.1 release|
 |99|UI|A simple GUI for qryptex would be cool|
 
-## Python implementation
-
-Does not run without a python installation and has a dependency to the cryptodome package.
-Has no UI (yet?).
-
 ## Test cases
 
 OpenSsl key pair generation:
