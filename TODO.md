@@ -6,8 +6,8 @@ This is a loose collection of features to implement.
 
 |prio|name|desc|
 |----|----|----|
-|0|key pair creation|qryptex init should create a key pair for the application|
 |1|Tests|There is no test suite. When making bigger changes, we want to ensure correctness|
+|2|Streaming crypto|Files are currently read to memory as a whole. The cipher however supports streaming. To support bigger files, the crypto operations should work on the file streams|
 |10|Release Pipeline|When the core features and tests are done, let's make a 0.1 release|
 |99|UI|A simple GUI for qryptex would be cool|
 

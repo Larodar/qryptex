@@ -11,10 +11,13 @@ use crate::types::ExportOp;
 use crate::types::Operation;
 use contacts::*;
 use error::{ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
+use openssl::rsa::Rsa;
 use rand::prelude::StdRng;
 use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fs;
+use std::io;
+use std::io::Write;
 use std::{convert::TryFrom, path::Path};
 
 mod cli;
@@ -155,15 +158,25 @@ fn init(settings: AppSettings) -> std::io::Result<()> {
     create_dir_graceful(settings.contacts_dir.as_path())?;
     fs::create_dir(settings.local_keys_path.as_path())?;
 
+    let mut path = settings.home.clone();
+    path.push("_self");
+    let mut priv_key_path = path.clone();
+    priv_key_path.push("private.pem");
+    path.push("public.pem");
+    let pub_key_path = path;
+    let pair = Rsa::generate(2048).unwrap();
+    let priv_key = pair.private_key_to_pem().unwrap();
+    write_to_new_file(&priv_key[..], &priv_key_path)?;
+    let pub_key = pair.public_key_to_pem().unwrap();
+    write_to_new_file(&pub_key[..], &pub_key_path)?;
+
     println!("Initialization complete.");
-
-    // create key pair
-    // TODO: figure this out
-    // if linux
-    // openssl genrsa --out ~/.qryptex/_self/private.pem
-    // openssl rsa -in private.pem -pubout > public.pem
-
     Ok(())
+}
+
+fn write_to_new_file(data: &[u8], file_path: &Path) -> io::Result<()> {
+    let mut file = std::fs::File::create(file_path)?;
+    file.write_all(data)
 }
 
 fn encrypt(context: CryptoOp, app: AppSettings) -> Result<(), QryptexError> {

@@ -12,3 +12,4 @@ rand = "0.8.3"
 rsa = "0.4.0"
 sha2 = "0.9.4"
 aes-gcm = "*"
+openssl = {version = "0.10.38", features = ["vendored"]}
