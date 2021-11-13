@@ -4,17 +4,6 @@
 A small encryption tool to quickly encrypt a message or file and send the result over an insecure channel (Discord, Slack, etc).
 The idea is to be able to send a password or files containing sensitive data to someone you know and not having to fight with settings or worry about the channel.
 
-## Rust implementation
-
-Does not support creation and storing of a key pair. On linux we could just invoke openssl.
-Has no UI (yet?).
-Tests are missing!
-
-## Python implementation
-
-Does not run without a python installation and has a dependency to the cryptodome package.
-Has no UI (yet?).
-
 ## Usage
 
 Usage: qryptex [option(s)]
@@ -90,40 +79,37 @@ contact delete --name name
 contact del -n name
 ```
 
-### !notImplemented export {contact name}
+### contact list
+
+Prints a list of the available contacts.
+
+```bash
+contact list
+```
+
+### export key
 
 Command variants (case independent):
 
-```bash
-export
-```
-
-Exports the public key of the provided contact or, if no name was given, exports the applications public key. (-t to supply a target)
-
-## Test cases
-
-### OpenSsl key pair generation
-
-Private key
+Export the applications public key, which you can send to someone,
+you want to exchange data with.
 
 ```bash
-openssl genrsa --out private.pem
+export -t ~/path/to/key.pem
+export --target ~/path/to/key.pem
 ```
 
-Public key
+Export the public key of a contact.
 
 ```bash
-openssl rsa -in private.pem -pubout > public.pem
+export -t ~/path/to/key.pem
+export --target ~/path/to/key.pem
 ```
 
-user2 keys are imported as self.
-./qryptex init
-./qryptex contact add -n test1 -k ../../../dev_keys/user1/user1_pub.pem
-./qryptex contact del -n test1
-./qryptex contact list
-./qryptex contact ls
-./qryptex enc -c test1 "this is a test"
-cargo run -- enc -c test1 "this is a test"
+Exports the public key of the provided contact or,
+if no name was given, exports the applications public key. (-t to supply a target)
+
+### Misc
 
 There is a *--debug* flag implemented, which switches the qryptex home dir to .qryptex_dev.
 The implementation is a quickfix. Expect it to not work properly.
