@@ -7,6 +7,7 @@ use crate::types::AppSettings;
 use crate::types::ContactOp;
 use crate::types::CryptoOp;
 use crate::types::CryptoTarget;
+use crate::types::ExportOp;
 use crate::types::Operation;
 use contacts::*;
 use error::{ContactsError, ContactsErrorKind, CryptographicErrorKind, QryptexError};
@@ -15,6 +16,7 @@ use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fs;
 
+use std::path::PathBuf;
 use std::{convert::TryFrom, path::Path};
 
 mod cli;
@@ -60,6 +62,7 @@ fn run_command(op: Operation, app_settings: AppSettings) {
                 .collect::<()>();
             Ok(())
         }
+        Operation::Export(context) => export_key(context, app_settings),
     };
 
     handle_result(result);
@@ -71,6 +74,33 @@ fn handle_result(result: Result<(), QryptexError>) {
         std::process::exit(1);
     } else {
         println!("The operation finished successfully.");
+    }
+}
+
+/// Exports the public key of the contact or self to the specified target location.
+fn export_key(context: ExportOp, settings: AppSettings) -> Result<(), QryptexError> {
+    let key_path = match context.contact {
+        Some(c) => {
+            // export contact
+            if settings.contacts.contains(&c) {
+                let mut path = settings.contacts_dir.clone();
+                path.push(c);
+                Ok(path)
+            } else {
+                Err(QryptexError::new_contact(ContactsErrorKind::NotFound))
+            }
+        }
+        None => {
+            // export self
+            let mut path = settings.home.clone();
+            path.push("_self/public.pem");
+            Ok(path)
+        }
+    }?;
+
+    match fs::copy(key_path, context.output_path) {
+        Ok(0) | Err(_) => Err(QryptexError::new_contact(ContactsErrorKind::Io)),
+        _ => Ok(()),
     }
 }
 

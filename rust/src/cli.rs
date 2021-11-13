@@ -1,8 +1,12 @@
+//! Cli args parser module:
+//! Parse the cli input and create a consistent representation of it.
+//! If the input is invalid a descriptive error should be returned.
 use crate::error::CliErrorKind;
 use crate::error::QryptexError;
 use crate::types::ContactOp;
 use crate::types::CryptoOp;
 use crate::types::CryptoTarget;
+use crate::types::ExportOp;
 use crate::types::Operation;
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,6 +29,7 @@ pub fn read_cli_args() -> Result<(Operation, bool), QryptexError> {
             "encrypt" | "enc" => read_crypto_command(&mut params, Operation::Encrypt(None)),
             "contact" => read_contact_command(&mut params),
             "init" => Ok(Operation::Init),
+            "export" => read_export_command(&mut params),
             _ => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
         },
         None => Err(QryptexError::new_cli(CliErrorKind::MissingOperation)),
@@ -33,6 +38,39 @@ pub fn read_cli_args() -> Result<(Operation, bool), QryptexError> {
     Ok((op, std::env::args().last() == Some("--debug".to_string())))
 }
 
+fn read_export_command(args: &mut impl Iterator<Item = String>) -> Result<Operation, QryptexError> {
+    let mut out = None;
+    let mut contact = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "-t" | "--target" => {
+                if let Some(o) = args.next() {
+                    out = Some(PathBuf::from(o));
+                } else {
+                    return Err(QryptexError::new_cli(CliErrorKind::InvalidArgument));
+                }
+            }
+            _ => {
+                contact = Some(arg);
+            }
+        }
+    }
+
+    if out.is_none() {
+        return Err(QryptexError::new_cli(CliErrorKind::MissingOutputPath));
+    }
+
+    let op = ExportOp {
+        contact,
+        output_path: out.unwrap(),
+    };
+    Ok(Operation::Export(op))
+}
+
+/// Forms a valid contact operation from the arguments or returns an error.
+/// The error will be of type QryptexError::Cli.
+/// The operation will be either Operation::ContactAdd or
+/// Operation::ContactRemove.
 fn read_contact_command(
     args: &mut impl Iterator<Item = String>,
 ) -> Result<Operation, QryptexError> {
@@ -115,6 +153,10 @@ fn read_contact_command(
     }
 }
 
+/// Forms a valid cryptographic operation from the arguments or returns an error.
+/// The error will be of type QryptexError::Cli.
+/// The operation will be either Operation::Encrypt or
+/// Operation::Decrypt.
 fn read_crypto_command<I: Iterator<Item = String>>(
     args: &mut std::iter::Peekable<I>,
     op: Operation,
@@ -201,6 +243,9 @@ fn read_crypto_command<I: Iterator<Item = String>>(
     }
 }
 
+/// Takes a path, scans it for a '~' at the beginning.
+/// If the path starts with '~', it is replaced by the current user's
+/// home directory.
 fn resolve_tilde<T: AsRef<Path>>(path: T) -> PathBuf {
     let p = path.as_ref();
     if path.as_ref().starts_with("~") {

@@ -75,8 +75,20 @@ impl From<String> for CryptoTarget {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContactOp {
+    /// The name of the contact to add or remove.
     pub name: String,
+    /// The path of the key to import or None if it is a delete operation.
     pub key_path: Option<PathBuf>,
+}
+
+/// Models an operation to export a public key.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExportOp {
+    /// The contact to export or
+    /// None if the public key of self should be exported.
+    pub contact: Option<String>,
+    /// A path were the key will written.
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, PartialEq)]
@@ -87,6 +99,7 @@ pub enum Operation {
     ContactAdd(Option<ContactOp>),
     ContactRemove(Option<ContactOp>),
     ContactList,
+    Export(ExportOp),
 }
 
 impl Operation {
