@@ -81,13 +81,12 @@ fn handle_result(result: Result<(), QryptexError>) {
 /// Exports the public key of the contact or self to the specified target location.
 fn export_key(context: ExportOp, settings: AppSettings) -> Result<(), QryptexError> {
     let key_path = match context.contact {
-        Some(c) => {
+        Some(mut contact) => {
             // export contact
-            if settings.contacts.contains(&c) {
-                let mut path = settings.contacts_dir.clone();
-                let mut file_name = c.clone();
-                file_name.push_str(".pem");
-                path.push(file_name);
+            if settings.contacts.contains(&contact) {
+                let mut path = settings.contacts_dir;
+                contact.push_str(".pem");
+                path.push(contact);
                 Ok(path)
             } else {
                 Err(QryptexError::new_contact(ContactsErrorKind::NotFound))
@@ -95,7 +94,7 @@ fn export_key(context: ExportOp, settings: AppSettings) -> Result<(), QryptexErr
         }
         None => {
             // export self
-            let mut path = settings.home.clone();
+            let mut path = settings.home;
             path.push("_self/public.pem");
             Ok(path)
         }
@@ -151,24 +150,25 @@ fn remove_contact(context: ContactOp, app: AppSettings) -> Result<(), QryptexErr
         .map_err(|_| QryptexError::new_contact(ContactsErrorKind::Io))
 }
 
-fn init(settings: AppSettings) -> std::io::Result<()> {
+fn init(settings: AppSettings) -> Result<(), QryptexError> {
     // create .qryptex dir to store the information
-    fs::create_dir(settings.home.as_path())?;
+    fs::create_dir(settings.home.as_path()).map_err(CryptographicError::from)?;
     // create contacts dir to store the contact files
-    create_dir_graceful(settings.contacts_dir.as_path())?;
-    fs::create_dir(settings.local_keys_path.as_path())?;
+    create_dir_graceful(settings.contacts_dir.as_path()).map_err(CryptographicError::from)?;
+    fs::create_dir(settings.local_keys_path.as_path()).map_err(CryptographicError::from)?;
 
-    let mut path = settings.home.clone();
+    let mut path = settings.home;
     path.push("_self");
     let mut priv_key_path = path.clone();
     priv_key_path.push("private.pem");
     path.push("public.pem");
     let pub_key_path = path;
-    let pair = Rsa::generate(2048).unwrap();
+    let pair = Rsa::generate(2048)
+        .map_err(|e| CryptographicError::from(CryptographicErrorKind::from(e)))?;
     let priv_key = pair.private_key_to_pem().unwrap();
-    write_to_new_file(&priv_key[..], &priv_key_path)?;
+    write_to_new_file(&priv_key[..], &priv_key_path).map_err(CryptographicError::from)?;
     let pub_key = pair.public_key_to_pem().unwrap();
-    write_to_new_file(&pub_key[..], &pub_key_path)?;
+    write_to_new_file(&pub_key[..], &pub_key_path).map_err(CryptographicError::from)?;
 
     println!("Initialization complete.");
     Ok(())

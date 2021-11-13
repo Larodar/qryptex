@@ -2,6 +2,8 @@ use std::convert::From;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+use openssl::error::ErrorStack;
+
 #[derive(Debug)]
 pub enum QryptexError {
     Cli(CliError),
@@ -106,7 +108,7 @@ pub enum ContactsErrorKind {
     NotFound,
     ExistsAlready,
     Io,
-    Unknown,
+    //Unknown,
 }
 
 impl From<ContactsErrorKind> for ContactsError {
@@ -121,7 +123,7 @@ impl Display for ContactsErrorKind {
             ContactsErrorKind::NotFound => "Contact not found.",
             ContactsErrorKind::ExistsAlready => "A contact with the name does already exist.",
             ContactsErrorKind::Io => "The file operation failed.",
-            ContactsErrorKind::Unknown => "Something went wrong. Cause unknown.",
+            //ContactsErrorKind::Unknown => "Something went wrong. Cause unknown.",
         };
 
         write!(f, "{}", message)
@@ -215,7 +217,7 @@ pub enum InnerError {
     None,
     AesGcm(aes_gcm::Error),
     Io(std::io::Error),
-    Other(Box<dyn Error>),
+    //Other(Box<dyn Error>),
 }
 
 impl AsRef<InnerError> for InnerError {
@@ -260,20 +262,21 @@ impl Display for CryptographicError {
 impl Error for CryptographicError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.inner {
-            InnerError::Other(e) => Some(e.as_ref()),
+            // InnerError::Other(e) => Some(e.as_ref()),
             InnerError::Io(e) => Some(e),
             _ => None,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum CryptographicErrorKind {
     Io,
     InvalidKey,
     Format,
     Encryption,
     Decryption,
+    KeyGen(ErrorStack),
 }
 
 impl Display for CryptographicErrorKind {
@@ -284,7 +287,20 @@ impl Display for CryptographicErrorKind {
             CryptographicErrorKind::Format => "The data was malformed",
             CryptographicErrorKind::Encryption => "Encrypting the data failed",
             CryptographicErrorKind::Decryption => "Decrypting the data failed",
+            CryptographicErrorKind::KeyGen(errors) => {
+                writeln!(f, "Key generation failed:")?;
+                for e in errors.errors() {
+                    writeln!(f, "{}", e)?;
+                }
+                return Ok(());
+            }
         };
         write!(f, "{}", message)
+    }
+}
+
+impl From<ErrorStack> for CryptographicErrorKind {
+    fn from(v: ErrorStack) -> Self {
+        CryptographicErrorKind::KeyGen(v)
     }
 }
