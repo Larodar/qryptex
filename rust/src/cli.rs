@@ -45,7 +45,7 @@ fn read_export_command(args: &mut impl Iterator<Item = String>) -> Result<Operat
         match arg.as_str() {
             "-t" | "--target" => {
                 if let Some(o) = args.next() {
-                    out = Some(PathBuf::from(o));
+                    out = Some(resolve_tilde(o));
                 } else {
                     return Err(QryptexError::new_cli(CliErrorKind::InvalidArgument));
                 }

@@ -15,8 +15,6 @@ use rand::prelude::StdRng;
 use rand::{RngCore, SeedableRng};
 use rsa::{pem::parse, pem::Pem, PaddingScheme, PublicKey, RSAPrivateKey, RSAPublicKey};
 use std::fs;
-
-use std::path::PathBuf;
 use std::{convert::TryFrom, path::Path};
 
 mod cli;
@@ -84,7 +82,9 @@ fn export_key(context: ExportOp, settings: AppSettings) -> Result<(), QryptexErr
             // export contact
             if settings.contacts.contains(&c) {
                 let mut path = settings.contacts_dir.clone();
-                path.push(c);
+                let mut file_name = c.clone();
+                file_name.push_str(".pem");
+                path.push(file_name);
                 Ok(path)
             } else {
                 Err(QryptexError::new_contact(ContactsErrorKind::NotFound))
@@ -99,7 +99,8 @@ fn export_key(context: ExportOp, settings: AppSettings) -> Result<(), QryptexErr
     }?;
 
     match fs::copy(key_path, context.output_path) {
-        Ok(0) | Err(_) => Err(QryptexError::new_contact(ContactsErrorKind::Io)),
+        Err(_) => Err(QryptexError::new_contact(ContactsErrorKind::NotFound)),
+        Ok(0) => Err(QryptexError::new_contact(ContactsErrorKind::Io)),
         _ => Ok(()),
     }
 }
