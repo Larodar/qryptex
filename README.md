@@ -29,7 +29,7 @@ The command encrypts the given plaintext for the selected contact and prints it 
 
 Command variants (case independent):
 
-```bash
+```
 decrypt | dec
 ```
 
@@ -45,7 +45,7 @@ The command decrypts the given ciphertext and prints it to stdout if the file fl
 
 Command variants (case independent):
 
-```bash
+```
 init
 ```
 
@@ -61,7 +61,7 @@ They are stored in *~/.qryptex/contacts/*. The name of the contact acts as a key
 
 Command variants (case independent):
 
-```bash
+```
 contact add -n name -k path/to/key.pem
 contact add -name name -key path/to/key.pem
 ```
@@ -72,7 +72,7 @@ This command fails if there is already a contact with the same name.
 
 Command variants (case independent):
 
-```bash
+```
 contact remove --name name
 contact rem -n name
 contact delete --name name
@@ -83,7 +83,7 @@ contact del -n name
 
 Prints a list of the available contacts.
 
-```bash
+```
 contact list
 ```
 
@@ -94,14 +94,14 @@ Command variants (case independent):
 Export the applications public key, which you can send to someone,
 you want to exchange data with.
 
-```bash
+```
 export -t ~/path/to/key.pem
 export --target ~/path/to/key.pem
 ```
 
 Export the public key of a contact.
 
-```bash
+```
 export -t ~/path/to/key.pem
 export --target ~/path/to/key.pem
 ```
